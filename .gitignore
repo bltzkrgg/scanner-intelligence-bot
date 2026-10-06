@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.pnpm-store/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+research/data/*.csv
+research/data/*.parquet
+coverage/
+.DS_Store
+.venv/
+*.tsbuildinfo

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": ["node"],
+    "paths": {
+      "@sti/shared": ["packages/shared/src/index.ts"],
+      "@sti/gmgn": ["packages/gmgn/src/index.ts"],
+      "@sti/analysis": ["packages/analysis/src/index.ts"],
+      "@sti/benchmark": ["packages/benchmark/src/index.ts"],
+      "@sti/report": ["packages/report/src/index.ts"],
+      "@sti/database": ["packages/database/src/index.ts"]
+    }
+  },
+  "include": ["apps/**/*.ts", "packages/**/*.ts", "tests/**/*.ts"]
+}
