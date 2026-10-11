@@ -1,6 +1,6 @@
 # Solana Token Intelligence Bot
 
-Scanner token Solana sesuai permintaan melalui Telegram dan HTTP API. Kirim `/scan <mint>` untuk laporan berbahasa Indonesia tentang distribusi holder, developer, smart money, momentum, risiko, dan perbandingan dengan benchmark tersimpan.
+Scanner token Solana sesuai permintaan melalui Telegram dan HTTP API. Kirim alamat mint Solana langsung (atau `/scan <mint>`) untuk laporan berbahasa Indonesia tentang distribusi holder, developer, smart money, momentum, risiko, dan perbandingan dengan benchmark tersimpan. Pesan biasa yang bukan alamat mint diabaikan.
 
 **Status: MVP pengembangan.** Mode default menggunakan snapshot dan benchmark sintetis, bukan data pasar aktual. Integrasi GMGN CLI tersedia sebagai adapter awal; mapping respons live belum diuji dengan kredensial GMGN dan beberapa metrik belum tersedia.
 

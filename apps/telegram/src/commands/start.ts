@@ -5,7 +5,7 @@ export async function startCommand(ctx: Context): Promise<void> {
     [
       "Solana Token Intelligence Bot",
       "",
-      "Kirim /scan <contract_address> untuk laporan historis berbasis data.",
+      "Kirim alamat mint Solana langsung untuk mendapat laporan. /scan <contract_address> juga bisa digunakan.",
       "Bot ini bukan trading bot dan tidak memberi sinyal buy/sell."
     ].join("\n")
   );

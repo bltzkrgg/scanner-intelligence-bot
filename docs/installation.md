@@ -124,10 +124,14 @@ pnpm telegram:dev
 Buka chat bot, tekan Start atau kirim `/start`, kemudian:
 
 ```text
-/scan So11111111111111111111111111111111111111112
+So11111111111111111111111111111111111111112
 ```
 
-Bot harus mengirim laporan Indonesia dengan klasifikasi, skor, sumber `fixture`, metrics, dan risiko. Bot memakai Telegram long polling untuk menerima pesan; tidak ada polling harga token. Jalankan satu proses per token bot.
+Bot langsung mengirim laporan Indonesia dengan klasifikasi, skor, sumber `fixture`, metrics, dan risiko. `/scan <alamat_mint>` tetap tersedia. Kirim satu alamat mint saja dalam pesan; pesan biasa diabaikan.
+
+Untuk menerima CA langsung di grup, nonaktifkan privacy mode melalui `/setprivacy` pada BotFather, pilih bot, lalu Disable. Jika diperlukan, keluarkan dan tambahkan bot kembali ke grup. Pada chat pribadi, tidak perlu mengubah privacy mode.
+
+Bot memakai Telegram long polling untuk menerima pesan; tidak ada polling harga token. Jalankan satu proses per token bot.
 
 API tidak perlu aktif karena bot memanggil scanner langsung. Terminal harus tetap terbuka sampai service dipasang. Tekan `Ctrl+C` untuk berhenti. Pengujian Telegram sungguhan membutuhkan token dan internet; test lokal tidak memverifikasi autentikasi Telegram Anda.
 
