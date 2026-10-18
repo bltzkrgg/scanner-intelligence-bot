@@ -1,6 +1,6 @@
 import type { Bot, Context } from "grammy";
 import { assessRunner, evaluateTokenAlert, formatRunnerRecord, type IntelligenceScanner, type RunnerMonitor } from "@sti/analysis";
-import { CHAIN_NAMES, parseTokenInput, type AppConfig } from "@sti/shared";
+import { CHAIN_NAMES, parseTokenInput, isEnrichmentDiagnostic, type AppConfig } from "@sti/shared";
 import { resolveTokenInput } from "./token-input.js";
 
 export function registerRunnerCommands(bot: Bot, monitor: RunnerMonitor, scanner: IntelligenceScanner, config: AppConfig): void {
@@ -75,7 +75,7 @@ async function runnerInput(ctx: Context, text: string, monitor: RunnerMonitor, s
         `Runner Score: ${assessment.score ?? "belum tersedia"}`,
         `Status rule skor eksperimen: ${assessment.candidate ? "KANDIDAT" : "BELUM MEMENUHI / DATA BELUM LENGKAP"}`,
         `Filter alert admin: ${evaluateTokenAlert(snapshot, monitor.snapshot().alertConfig).passed ? "LOLOS" : "BELUM LOLOS"}`,
-        ...assessment.reasons,
+        ...assessment.reasons.filter((reason) => !isEnrichmentDiagnostic(reason)),
         tracked ? formatRunnerRecord(tracked) : "Belum masuk histori deteksi.",
         monitor.active ? "Pemantauan aktif." : "Pemantauan nonaktif. Admin perlu mengaktifkan runner.",
         "Runner Score adalah rule eksperimen, bukan prediksi return."

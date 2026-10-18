@@ -95,7 +95,7 @@ describe("safe provider diagnostics", () => {
     expect(reason).toContain("capturedAt");
     expect(reason).toContain("traders");
     expect(reason).not.toContain("SECRET");
-    expect(formatTelegramRisk(result)).toContain("format respons API");
+    expect(formatTelegramRisk(result)).not.toContain("format respons API");
   });
 
   it("retains valid holder percentages when optional funding metadata is empty or invalid", () => {

@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
-import { chainSchema, normalizeAddress, tokenAddressSchema, tokenIntelligenceSchema, CHAIN_NAMES, type Chain, type MarketSnapshot } from "@sti/shared";
+import { chainSchema, normalizeAddress, tokenAddressSchema, tokenIntelligenceSchema, CHAIN_NAMES, isEnrichmentDiagnostic, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "@sti/gmgn";
 import { alertConfigSchema, defaultAlertConfig, alertsEnabled, alertInterval, maxAlertsPerScan,
   evaluateTokenAlert, evaluateVolumeSpike, volumeSpikeConfig, updateAlertConfig } from "./alert-config.js";
@@ -323,11 +323,12 @@ export class RunnerMonitor {
 
 export function formatRunnerRecord(record: RunnerRecord, now = Date.now()): string {
   const stale = now - Date.parse(record.lastSeenAt) > 15 * 60_000;
+  const notes = record.riskNotes.filter((note) => !isEnrichmentDiagnostic(note));
   return [
     `${record.symbol} | ${CHAIN_NAMES[record.chain]} | ${record.mint}`,
     `Status: ${stale ? "DATA LAMA" : record.candidate ? "KANDIDAT" : "MELEMAH / DATA BELUM LENGKAP"}`,
     `Runner Score: ${record.score ?? "belum tersedia"}`,
-    ...(record.riskNotes.length ? [`Catatan: ${record.riskNotes.join(" ")}`] : []),
+    ...(notes.length ? [`Catatan: ${notes.join(" ")}`] : []),
     `Harga USD: ${record.latestPrice}; awal deteksi: ${record.initialPrice}`,
     `Sejak deteksi: ${((record.latestPrice / record.initialPrice - 1) * 100).toFixed(2)}%`,
     `Puncak teramati: ${(record.peakPrice / record.initialPrice).toFixed(2)}x; max drawdown teramati: ${record.maxDrawdownPct.toFixed(2)}%`,

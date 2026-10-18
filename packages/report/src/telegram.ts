@@ -1,4 +1,4 @@
-import { CHAIN_NAMES, type IntelligenceResult, type MarketSnapshot } from "@sti/shared";
+import { CHAIN_NAMES, isEnrichmentDiagnostic, type IntelligenceResult, type MarketSnapshot } from "@sti/shared";
 import { assessRunner, evaluateTokenAlert, type AlertConfig, type RunnerRecord } from "@sti/analysis";
 
 export type TelegramReportContext = {
@@ -57,6 +57,7 @@ export function formatTelegramRisk(result: IntelligenceResult): string {
     ...intelligenceSummary(s, true),
     "*Catatan*",
     ...[...new Set([...(s.runnerBlockReason ? [s.runnerBlockReason] : []), ...result.warnings])]
+      .filter((warning) => !isEnrichmentDiagnostic(warning))
       .slice(0, 8).map((warning) => escapeMarkdown(clip(warning, 180))),
     escapeMarkdown("Belum tersedia berarti belum dapat dinilai, bukan nol atau bukti aman."), "",
     `_${escapeMarkdown(`Data ${source(s.source)} | ${wib(s.observedAt)}`)}_`,
@@ -83,7 +84,8 @@ function intelligenceSummary(s: MarketSnapshot, detailed = false): string[] {
       `Kelompok pendanaan terbesar teramati: ${percent(i.linkedFundingPct)} supply; bukan bukti satu pemilik.`,
       `Top wallet: ${i.topHolderPcts.slice(0, 5).map((p) => percent(p)).join(" • ") || "belum tersedia"}`,
       `Sumber enrichment: ${i.sources.join(", ") || "belum tersedia"}`,
-      ...Object.entries(i.unavailable).map(([field, reason]) => `Data ${field}: ${clip(reason, 160)}`)
+      ...Object.entries(i.unavailable).filter(([field]) => field !== "fomo" && field !== "developer")
+        .map(([field, reason]) => `Data ${field}: ${clip(reason, 160)}`)
     ] : [])
   ];
   return ["*Intelligence*", ...lines.map(escapeMarkdown), ""];
@@ -131,6 +133,7 @@ function alertStatus(result: IntelligenceResult, context: TelegramReportContext)
 
 function riskWarnings(result: IntelligenceResult): string[] {
   return [...new Set([...(result.snapshot.runnerBlockReason ? [result.snapshot.runnerBlockReason] : []), ...result.warnings])]
+    .filter((warning) => !isEnrichmentDiagnostic(warning))
     .filter((warning) => !warning.startsWith("Skor historis belum tersedia:") && warning !== "Data risiko yang belum tersedia bukan bukti token aman.");
 }
 

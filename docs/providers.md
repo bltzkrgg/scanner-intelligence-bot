@@ -28,7 +28,7 @@ ENRICHMENT_CACHE_SEC=300
 
 Key kosong menonaktifkan provider terkait. MadeOnSol dan FOMO juga bisa dimatikan dengan flag ENABLED=false tanpa menghapus key. Default analisis holder GMGN adalah false karena memerlukan query tambahan dan bobot kuota lebih tinggi. Jangan memakai demo/public key untuk menganggap data production sudah diverifikasi. Variabel `*_BASE_URL` dan `FOMO_LEADERBOARD_LIMIT` pada proposal awal tidak dipakai: origin dikunci ke layanan resmi dan limit FOMO tetap 100. Tidak perlu menambahkan variabel tersebut.
 
-`FOMO_LEADERBOARD_WINDOW`: 24h / 7d / 30d / all. `ENRICHMENT_CACHE_SEC`: 30-3600. Key provider yang salah tidak menjatuhkan scan market GMGN; laporan memberi catatan provider gagal dan nilainya belum tersedia. GMGN sendiri tetap wajib untuk market dan pemeriksaan keamanan dasar; enrichment bukan fallback market.
+`FOMO_LEADERBOARD_WINDOW`: 24h / 7d / 30d / all. `ENRICHMENT_CACHE_SEC`: 30-3600. Key provider yang salah tidak menjatuhkan scan market GMGN; nilai tetap belum tersedia dan alasan kegagalan tersimpan pada diagnostik. GMGN sendiri tetap wajib untuk market dan pemeriksaan keamanan dasar; enrichment bukan fallback market.
 
 ```bash
 pnpm gmgn:check sol <CA> --discovery
@@ -48,7 +48,7 @@ pnpm providers:check sol <CA>
 
 Output berisi flag aktif/nonaktif, boolean keberadaan key (bukan nilainya), sumber yang berhasil, dan alasan field pada `unavailable`. HTTP 401 dibedakan dari 402 (kredit), 403 (izin/paket/IP), 429 (rate limit), timeout, respons bukan JSON dan format parser tidak cocok. Error parser hanya mencantumkan nama field yang diizinkan, tidak menampilkan nilai mentah. FOMO leaderboard kedaluwarsa atau holder fallback tidak dianggap data live. MadeOnSol memerlukan alamat deployer serta total deploy/bond yang tersedia; key valid saja tidak mengisi data yang belum diindeks.
 
-Wallets dan Linked funding memerlukan `GMGN_HOLDER_ANALYSIS_ENABLED=true`. Tanpa flag ini query holder tidak dijalankan, sekalipun key lain lengkap. Bila GMGN tidak memberikan `native_transfer.from_address` yang valid, Linked funding tetap N/A; metadata funding kosong tidak lagi menggugurkan daftar wallet yang valid. Alasan per field tampil pada detail risiko dan alert baru. Pesan lama tidak diperbarui otomatis.
+Wallets dan Linked funding memerlukan `GMGN_HOLDER_ANALYSIS_ENABLED=true`. Tanpa flag ini query holder tidak dijalankan, sekalipun key lain lengkap. Bila GMGN tidak memberikan `native_transfer.from_address` yang valid, Linked funding tetap N/A; metadata funding kosong tidak lagi menggugurkan daftar wallet yang valid. Error teknis enrichment MadeOnSol/FOMO disembunyikan dari pesan Telegram, termasuk salinannya pada bagian Data Belum Tersedia. Alasan tetap tersimpan pada state/API dan `providers:check`. Catatan Risiko pada alert tidak muncul jika tidak ada warning lain; bukti risiko token dan label data parsial tetap tampil. Pesan lama tidak diperbarui otomatis.
 
 Setelah mengubah env, restart lewat `pm2 restart ecosystem.config.cjs --only scanner-telegram --update-env`, bukan hanya mengedit file. CLI check membaca `.env` baru, sementara proses PM2 lama bisa masih memakai env lama. Kirim output diagnostik bila perlu bantuan, jangan `.env`, header auth atau key. Perintah diagnostik tetap membutuhkan GMGN yang berfungsi; flag konfigurasi dicetak sebelum query sehingga tetap bisa diperiksa jika GMGN gagal.
 
@@ -87,6 +87,6 @@ Mengisi semua key tidak berarti semua field lengkap. Posisi likuiditas Meteora, 
 
 RH memakai `MADEONSOL_API_KEY` dan `MADEONSOL_ENABLED` yang sama, tanpa variabel env tambahan. Enrichment RH lama dalam state mendapat field graduation null saat dibaca, bukan diisi dari bonding Solana atau data masa depan. Format baru hanya berlaku pada query/pengiriman berikutnya.
 
-Format berikutnya tetap menggunakan tombol GMGN / Detail Runner / Salin CA. Detail risiko scan menampilkan authority, kelompok pendanaan dan cakupan holder; laporan utama dan alert runner menampilkan ringkasan FOMO/KOL/developer bila sumber tersedia. Catatan provider gagal dan label parsial tetap ditampilkan. Tidak menambahkan probabilitas profit atau kandidat palsu.
+Format berikutnya tetap menggunakan tombol GMGN / Detail Runner / Salin CA. Detail risiko scan menampilkan authority, kelompok pendanaan dan cakupan holder; laporan utama dan alert runner menampilkan ringkasan FOMO/KOL/developer bila sumber tersedia. Error teknis MadeOnSol/FOMO tidak ditampilkan di Telegram, sedangkan label parsial dan warning keamanan token tetap ada. Tidak menambahkan probabilitas profit atau kandidat palsu.
 
 Referensi kontrak: [GMGN token](https://github.com/GMGNAI/gmgn-skills/blob/main/skills/gmgn-token/SKILL.md), [GMGN holder](https://github.com/GMGNAI/gmgn-skills/blob/main/skills/gmgn-holder-analysis/SKILL.md), [Tracker token](https://docs.solanatracker.io/data-api/tokens/get-token-information), [Tracker search](https://docs.solanatracker.io/data-api/search/token-search), [Helius RPC](https://www.helius.dev/docs/api-reference/rpc/http/getaccountinfo), [MadeOnSol](https://madeonsol.com/api-docs), [FOMO](https://fomoapi.io/docs).

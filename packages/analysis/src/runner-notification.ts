@@ -1,4 +1,4 @@
-import { CHAIN_NAMES } from "@sti/shared";
+import { CHAIN_NAMES, isEnrichmentDiagnostic } from "@sti/shared";
 import type { RunnerEvent } from "./runner.js";
 
 export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): string {
@@ -59,7 +59,8 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
     detail = complete ? r.chain === "robinhood" ? "VOL • FEES" : "VOL • MC • FEES • AGE"
       : "Data wajib N/A.\nFilter belum terverifikasi.";
   }
-  const notes = r.riskNotes.slice(0, 3).map((note) => escapeHtml(clip(note, 180)));
+  const notes = r.riskNotes.filter((note) => !isEnrichmentDiagnostic(note)).slice(0, 3).map((note) => escapeHtml(clip(note, 180)));
+  const unavailable = Object.entries(i?.unavailable ?? {}).filter(([field]) => field !== "fomo" && field !== "developer");
   return [
     `<b>${badge} ${network} TOKEN RUNNER</b>`, "",
     `<b>💊 ${escapeHtml(clip(r.symbol, 40))}${present(r.dexAgeMinutes) ? ` • ${number(r.dexAgeMinutes)}m` : ""}</b>`,
@@ -72,8 +73,8 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
       : event.kind === "spike" ? []
       : ["Kelipatan harga teramati saat query; bukan target atau ATH."]),
     ...(notes.length ? ["", "<b>Catatan Risiko</b>", ...notes] : []), "",
-    ...(i && Object.keys(i.unavailable).length ? ["<b>Data Belum Tersedia</b>",
-      ...Object.entries(i.unavailable).map(([field, reason]) => escapeHtml(`${field === "fomo" ? "FOMO Top 100" : field === "developer" ? "Developer" : "Linked funding"}: ${clip(reason, 140)}`)), ""] : []),
+    ...(unavailable.length ? ["<b>Data Belum Tersedia</b>",
+      ...unavailable.map(([, reason]) => escapeHtml(`Linked funding: ${clip(reason, 140)}`)), ""] : []),
     "<b>CA</b>", escapeHtml(r.mint)
   ].join("\n");
 }
