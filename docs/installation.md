@@ -206,23 +206,22 @@ Notifikasi startup bersifat opsional dan dikirim sekali setiap proses bot mulai 
 Contoh isi notifikasi pada mode mock:
 
 ```text
-TOKEN INTELLIGENCE | ONLINE
+🟢 TOKEN INTELLIGENCE
+Bot Online
 
-Bot mulai berjalan dan siap menerima CA.
-Jaringan: Solana | BSC | Robinhood Chain (RH)
-Mode data: MOCK / data contoh, bukan data pasar aktual.
+Solana · BSC · Robinhood
+Data: MOCK / data contoh
 Runner: Nonaktif
-Alert jaringan:
-Solana: Nonaktif | polling 60 detik
-BSC: Nonaktif | polling 60 detik
-Robinhood Chain (RH): Nonaktif | polling 60 detik
-Tujuan alert runner: BELUM DIISI; alert runner tidak dikirim
+Alert jaringan: Nonaktif
+Polling: 60 detik per jaringan
+Tujuan alert: Belum dikonfigurasi
+Alert runner belum dapat dikirim.
 
-Waktu mulai: <waktu WIB>
-Status proses aktif. Koneksi GMGN belum diverifikasi sebelum query berhasil.
+Mulai: <waktu WIB>
+Mode demo, bukan data pasar aktual.
 ```
 
-Pada mode `cli`, baris mode menyatakan GMGN CLI dan bahwa koneksi provider belum diverifikasi oleh status ini. Notifikasi menunjukkan proses mulai berjalan, bukan hasil pengujian kesehatan provider. Kegagalan pengiriman notifikasi dicatat sebagai warning dan tidak menghentikan bot.
+Pada mode `cli`, laporan menyatakan GMGN Live dan koneksi GMGN menunggu verifikasi query. Jika interval/status jaringan berbeda, ditampilkan rincian per jaringan. Notifikasi menunjukkan proses mulai berjalan, bukan hasil pengujian kesehatan provider. Kegagalan pengiriman notifikasi dicatat beserta kategori error dan tidak menghentikan bot.
 
 Untuk aktivasi runner, menjalankan dengan PM2, mengubah filter melalui `/setconfig`, dan contoh pesan kandidat/spike/milestone, lanjutkan ke [panduan pengaturan runner](runner-config.md).
 

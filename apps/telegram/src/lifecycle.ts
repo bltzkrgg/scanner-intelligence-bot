@@ -98,30 +98,51 @@ export async function sendRunnerNotifications(bot: Bot, runner: RunnerMonitor, c
 
 export function formatStartupNotification(config: AppConfig, runner?: RunnerMonitor, now = Date.now()): string {
   const state = runner?.snapshot();
-  return ["TOKEN INTELLIGENCE | ONLINE", "", "Bot mulai berjalan dan siap menerima CA.", "",
-    `Jaringan: ${config.enabledChains.map((chain) => CHAIN_NAMES[chain]).join(" | ")}`,
-    config.gmgnProvider === "cli" ? "Mode data: GMGN Live" : "Mode data: MOCK / data contoh, bukan data pasar aktual.",
-    `Runner: ${runner?.active ? "Aktif" : "Nonaktif"}`, "Alert jaringan:",
-    ...config.enabledChains.map((chain) => `${CHAIN_NAMES[chain]}: ${runner?.active && state && alertsEnabled(state.alertConfig, chain) ? "Aktif" : "Nonaktif"}${state ? ` | polling ${alertInterval(state.alertConfig, chain)} detik` : ""}`),
-    `Tujuan alert runner: ${config.telegramRunnerChatId ? "dikonfigurasi" : "BELUM DIISI; alert runner tidak dikirim"}`,
-    "", `Waktu mulai: ${formatLifecycleTime(now)}`, "",
-    "Status proses aktif. Koneksi GMGN belum diverifikasi sebelum query berhasil."
+  const networks = config.enabledChains.map((chain) => ({
+    name: chain === "robinhood" ? "Robinhood" : CHAIN_NAMES[chain],
+    active: Boolean(runner?.active && runner.chains.includes(chain) && state && alertsEnabled(state.alertConfig, chain)),
+    interval: state ? alertInterval(state.alertConfig, chain) : null
+  }));
+  const uniform = networks.every((network) => network.active === networks[0].active && network.interval === networks[0].interval);
+  return ["<b>🟢 TOKEN INTELLIGENCE</b>", "<b>Bot Online</b>", "",
+    networks.map((network) => network.name).join(" · "),
+    `Data: <b>${config.gmgnProvider === "cli" ? "GMGN Live" : "MOCK / data contoh"}</b>`,
+    `Runner: <b>${runner?.active ? "Aktif" : "Nonaktif"}</b>`,
+    ...(uniform ? [
+      ...(!networks[0].active ? ["Alert jaringan: <b>Nonaktif</b>"] : []),
+      `Polling: <b>${networks[0].interval === null ? "belum tersedia" : `${networks[0].interval} detik per jaringan`}</b>`
+    ] : ["", "<b>Pemantauan Jaringan</b>", ...networks.map((network) =>
+      `${network.name}: <b>${network.active ? "Aktif" : "Nonaktif"}</b> · ${network.interval === null ? "interval belum tersedia" : `${network.interval} detik`}`)]),
+    `Tujuan alert: <b>${config.telegramRunnerChatId ? "Dikonfigurasi" : "Belum dikonfigurasi"}</b>`,
+    ...(!config.telegramRunnerChatId ? ["<i>Alert runner belum dapat dikirim.</i>"] : []), "",
+    `<i>Mulai: ${formatLifecycleTime(now)}</i>`,
+    config.gmgnProvider === "cli" ? "<i>Koneksi GMGN menunggu verifikasi query.</i>" : "<i>Mode demo, bukan data pasar aktual.</i>"
   ].join("\n");
 }
 
 export function formatLifecycleTime(now: number): string {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "medium" }).format(now) + " WIB";
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+  }).formatToParts(now).map(({ type, value }) => [type, value]));
+  return `${parts.day} ${parts.month} ${parts.year}, ${parts.hour}:${parts.minute}:${parts.second} WIB`;
 }
 
 export function formatShutdownNotification(reason: string, startedAt: number, saved: boolean, now = Date.now()): string {
   const minutes = Math.floor(Math.max(0, now - startedAt) / 60000);
-  return ["TOKEN INTELLIGENCE | OFFLINE", "", "Proses bot sedang dihentikan.",
-    "Scan CA, pemantauan runner, dan pengiriman alert tidak tersedia selama bot berhenti.", "",
-    `Alasan: ${reason}`, `Uptime: ${Math.floor(minutes / 60)} jam ${minutes % 60} menit`,
-    `Waktu berhenti: ${formatLifecycleTime(now)}`, "",
-    saved ? "Status penyimpanan: snapshot state terakhir berhasil disimpan. Observasi yang sebelumnya gagal tidak dipulihkan."
-      : "Status penyimpanan: checkpoint terakhir GAGAL; periksa log dan file state."
+  const trigger = reason.match(/^menerima sinyal (SIGINT|SIGTERM)$/)?.[1] ?? reason;
+  return ["<b>🔴 TOKEN INTELLIGENCE</b>", "<b>Bot Offline</b>", "",
+    "Scan CA dan pemantauan runner dihentikan.", "",
+    `Durasi aktif: <b>${Math.floor(minutes / 60)} jam ${minutes % 60} menit</b>`,
+    `State terakhir: <b>${saved ? "Berhasil disimpan" : "GAGAL disimpan"}</b>`,
+    `Pemicu: <b>${escapeLifecycleHtml(trigger)}</b>`,
+    ...(!saved ? ["<i>Periksa log dan file state.</i>"] : []), "",
+    `<i>Berhenti: ${formatLifecycleTime(now)}</i>`
   ].join("\n");
+}
+
+function escapeLifecycleHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 export async function sendShutdownNotification(bot: Bot, config: AppConfig, reason: string, startedAt: number, saved: boolean): Promise<boolean> {
@@ -136,7 +157,7 @@ async function deliverLifecycle(bot: Bot, config: AppConfig, event: string, text
     return false;
   }
   try {
-    await sendStatusMessage(bot, config.telegramStartupChatId, text);
+    await sendStatusMessage(bot, config.telegramStartupChatId, text, event === "TEST" ? undefined : "HTML");
     deliveries.set(bot, { event, result: "terkirim" });
     logger.info({ event }, "Lifecycle notification sent");
     return true;
@@ -154,13 +175,13 @@ export async function sendLifecycleTest(bot: Bot, config: AppConfig): Promise<bo
     `Waktu: ${formatLifecycleTime(Date.now())}`].join("\n"));
 }
 
-export async function sendStatusMessage(bot: Bot, chatId: string, text: string): Promise<void> {
+export async function sendStatusMessage(bot: Bot, chatId: string, text: string, parseMode?: "HTML"): Promise<void> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
   try {
     // grammY's Node polyfill typings differ from the native, compatible signal.
     const signal = controller.signal as unknown as NonNullable<Parameters<typeof bot.api.sendMessage>[3]>;
-    await bot.api.sendMessage(chatId, text, {}, signal);
+    await bot.api.sendMessage(chatId, text, parseMode ? { parse_mode: parseMode, link_preview_options: { is_disabled: true } } : {}, signal);
   } finally { clearTimeout(timer); }
 }
 

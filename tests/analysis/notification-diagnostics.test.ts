@@ -19,8 +19,10 @@ describe("lifecycle notification diagnostics", () => {
     expect(await sendStartupNotification(bot, config)).toBe(true);
     expect(await sendShutdownNotification(bot, config, "SIGINT", Date.now(), true)).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(JSON.parse(fetch.mock.calls[0][1].body).text).toContain("| ONLINE");
-    expect(JSON.parse(fetch.mock.calls[1][1].body).text).toContain("| OFFLINE");
+    expect(JSON.parse(fetch.mock.calls[0][1].body).text).toContain("<b>Bot Online</b>");
+    expect(JSON.parse(fetch.mock.calls[1][1].body).text).toContain("<b>Bot Offline</b>");
+    expect(JSON.parse(fetch.mock.calls[0][1].body).parse_mode).toBe("HTML");
+    expect(JSON.parse(fetch.mock.calls[1][1].body).parse_mode).toBe("HTML");
   });
 
   it("returns disabled explicitly instead of reporting a successful send", async () => {

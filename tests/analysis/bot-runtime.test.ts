@@ -34,7 +34,7 @@ async function setup(enabled = false) {
   const config = loadConfig({ TELEGRAM_STARTUP_CHAT_ID: "123", RUNNER_ENABLED: String(enabled), BOT_SHUTDOWN_TIMEOUT_SEC: "10" });
   const forceExit = vi.fn();
   const run = () => runTelegramRuntime(bot, runner, config, { signals, forceExit });
-  const online = () => vi.waitFor(() => expect(request).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ text: expect.stringContaining("| ONLINE") })));
+  const online = () => vi.waitFor(() => expect(request).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ text: expect.stringContaining("<b>Bot Online</b>") })));
   return { bot, signals, request, finish, stop, runner, checkpoint, forceExit, run, online };
 }
 
@@ -47,16 +47,16 @@ describe("whole-bot lifecycle", () => {
     s.signals.emit("SIGINT");
     expect(s.stop).toHaveBeenCalledOnce();
     expect(s.checkpoint).not.toHaveBeenCalled();
-    expect(JSON.stringify(s.request.mock.calls)).not.toContain("| OFFLINE");
+    expect(JSON.stringify(s.request.mock.calls)).not.toContain("<b>Bot Offline</b>");
     s.finish();
     await task;
     expect(s.checkpoint).toHaveBeenCalledOnce();
     const messages = s.request.mock.calls.filter(([method]) => method === "sendMessage").map(([, payload]) => payload.text);
     expect(messages).toHaveLength(2);
-    expect(messages[0]).toContain("| ONLINE");
-    expect(messages[1]).toContain("| OFFLINE");
+    expect(messages[0]).toContain("<b>Bot Online</b>");
+    expect(messages[1]).toContain("<b>Bot Offline</b>");
     expect(messages[1]).toContain("SIGTERM");
-    expect(messages[1]).toContain("snapshot state terakhir berhasil disimpan");
+    expect(messages[1]).toContain("State terakhir: <b>Berhasil disimpan</b>");
     expect(s.signals.listenerCount("SIGTERM")).toBe(0);
   });
 
@@ -68,7 +68,7 @@ describe("whole-bot lifecycle", () => {
     s.signals.emit("SIGINT");
     s.finish();
     await task;
-    expect(s.request).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ text: expect.stringContaining("checkpoint terakhir GAGAL") }));
+    expect(s.request).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ text: expect.stringContaining("GAGAL disimpan") }));
   });
 
   it("waits for an in-flight runner cycle before the final checkpoint", async () => {
@@ -96,7 +96,7 @@ describe("whole-bot lifecycle", () => {
       s.signals.emit("SIGTERM");
       await vi.advanceTimersByTimeAsync(10000);
       expect(s.forceExit).toHaveBeenCalledWith(1);
-      expect(JSON.stringify(s.request.mock.calls)).not.toContain("| OFFLINE");
+      expect(JSON.stringify(s.request.mock.calls)).not.toContain("<b>Bot Offline</b>");
       s.finish();
       await task;
     } finally { vi.useRealTimers(); }

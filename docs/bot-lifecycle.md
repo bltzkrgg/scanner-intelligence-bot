@@ -25,7 +25,7 @@ BOT_SHUTDOWN_TIMEOUT_SEC=25
 
 Chat pribadi harus sudah memulai bot; grup/channel harus mengizinkan bot mengirim. Kosongkan chat ID untuk menonaktifkan kedua pesan lifecycle. Perubahan `.env` membutuhkan restart.
 
-Shutdown menunggu promise polling (termasuk middleware aktif) dan siklus runner yang sedang berjalan sebelum checkpoint. Hanya checkpoint yang berhasil mendapat baris "snapshot state terakhir berhasil disimpan". Ini tidak memulihkan observasi yang pernah gagal ditulis sebelumnya. Jika checkpoint gagal, pesan menyatakan GAGAL. Sinyal berulang tidak mengirim OFFLINE berulang.
+Shutdown menunggu promise polling (termasuk middleware aktif) dan siklus runner yang sedang berjalan sebelum checkpoint. Hanya checkpoint yang berhasil mendapat baris "State terakhir: Berhasil disimpan". Ini tidak memulihkan observasi yang pernah gagal ditulis sebelumnya. Jika checkpoint gagal, pesan menyatakan GAGAL disimpan. Sinyal berulang tidak mengirim OFFLINE berulang.
 
 Pengiriman ONLINE/OFFLINE memiliki batas 5 detik per pesan. Shutdown keseluruhan dibatasi 25 detik secara default (valid 10-120). Jika pekerjaan macet melewati batas, proses dipaksa keluar dengan code 1, tanpa mengklaim penyimpanan/pengiriman berhasil. Monitor terpisah diperlukan sebagai cadangan. Kegagalan sangat awal, sebelum runtime/handler lifecycle terpasang (misalnya config atau state rusak), juga perlu dideteksi monitor.
 
@@ -133,22 +133,36 @@ Saat maintenance panjang, monitor akan tetap mengirim alarm jika heartbeat hilan
 
 ## 5. Contoh Pesan
 
+Format opsi 1 memakai judul dan nilai penting tebal, footer waktu miring, serta tanggal Indonesia dalam WIB. Berikut isi teksnya; formatting ditambahkan lewat HTML Telegram.
+
 ```text
-TOKEN INTELLIGENCE | ONLINE
+🟢 TOKEN INTELLIGENCE
+Bot Online
 
-Bot mulai berjalan dan siap menerima CA.
-Jaringan: Solana | BSC | Robinhood Chain (RH)
-Mode data: GMGN Live
+Solana · BSC · Robinhood
+Data: GMGN Live
 Runner: Aktif
-Alert jaringan:
-Solana: Aktif | polling 60 detik
-BSC: Aktif | polling 60 detik
-Robinhood Chain (RH): Aktif | polling 60 detik
-Tujuan alert runner: dikonfigurasi
+Polling: 60 detik per jaringan
+Tujuan alert: Dikonfigurasi
 
-Waktu mulai: 18 Oct 2026, 17:45:00 WIB
-Status proses aktif. Koneksi GMGN belum diverifikasi sebelum query berhasil.
+Mulai: 18 Okt 2026, 20:58:27 WIB
+Koneksi GMGN menunggu verifikasi query.
 ```
+
+```text
+🔴 TOKEN INTELLIGENCE
+Bot Offline
+
+Scan CA dan pemantauan runner dihentikan.
+
+Durasi aktif: 2 jam 16 menit
+State terakhir: Berhasil disimpan
+Pemicu: SIGINT
+
+Berhenti: 18 Okt 2026, 20:58:20 WIB
+```
+
+Polling diringkas hanya jika status dan interval semua jaringan sama. Jika berbeda, ONLINE menampilkan bagian Pemantauan Jaringan dengan status/interval masing-masing. Jika seluruh alert nonaktif, hal itu ditampilkan eksplisit. Mode mock tetap diberi label demo; tujuan alert yang belum diisi diberi peringatan. SIGINT/SIGTERM ditampilkan singkat sebagai pemicu, bukan otomatis disebut crash. Alasan kegagalan lain tetap dipertahankan dan di-escape agar tidak menjadi HTML. Monitor heartbeat dan pesan TES tetap pesan plain text; alur pengiriman, chat tujuan, checkpoint dan timeout tidak berubah.
 
 OFFLINE memuat alasan SIGINT/SIGTERM, uptime, waktu WIB dan hasil checkpoint. TIDAK TERHUBUNG menyatakan kemungkinan proses/server/endpoint/polling terganggu, heartbeat terakhir dan waktu deteksi. HEARTBEAT PULIH hanya mengonfirmasi koneksi polling menurut monitor, bukan kesehatan GMGN atau pengiriman alert runner.
 
