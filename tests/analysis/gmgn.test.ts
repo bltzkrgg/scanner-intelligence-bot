@@ -57,6 +57,18 @@ describe("GMGN live mapping", () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
+  it("bypasses the local cache on refresh without fabricating prices or timestamps", async () => {
+    let price = "1";
+    const run = vi.fn(async (args: string[]) => args[1] === "security" ? security : { ...info, price: { ...info.price, price } });
+    const scanner = new IntelligenceScanner(new CliGmgnAdapter(run, 0));
+    expect((await scanner.scan(mint)).snapshot.priceUsd).toBe(1);
+    price = "2";
+    expect((await scanner.scan(mint)).snapshot.priceUsd).toBe(1);
+    expect(run).toHaveBeenCalledTimes(2);
+    expect((await scanner.scan(mint, "sol", { forceRefresh: true })).snapshot.priceUsd).toBe(2);
+    expect(run).toHaveBeenCalledTimes(4);
+  });
+
   it("stops requests on rate limits and never falls back to fixture", async () => {
     const run = vi.fn(async () => { throw new Error("429 RATE_LIMIT_BANNED secret-not-for-chat"); });
     const adapter = new CliGmgnAdapter(run, 0);

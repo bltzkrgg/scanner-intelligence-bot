@@ -2,6 +2,8 @@
 
 Scanner token Solana, BSC, dan Robinhood Chain (RH) melalui Telegram dan HTTP API. Kirim CA langsung atau `/scan <chain> <CA>`. Untuk alamat EVM tanpa chain, bot menampilkan tombol BSC/RH. Pesan biasa diabaikan.
 
+Laporan Telegram kini ringkas, dengan CA monospace, angka K/M/B, waktu WIB, dan tombol Refresh, Detail Risiko, Status Runner, GMGN, Explorer, serta Salin CA. Lihat [panduan laporan dan tombol](docs/telegram-reports.md). Refresh memperbarui pesan yang sama melalui query provider baru, bukan sekadar mengganti timestamp.
+
 **Status:** scan live dan pemantauan runner pada ketiga jaringan, dengan notifikasi Telegram untuk kandidat baru dan milestone 2x/5x teramati. Dukungan data aktual mengikuti akses GMGN. Mode default `mock` hanya pesan demo, tanpa skor atau win rate. Field tidak tersedia bernilai `null`. Skor historis belum diterbitkan karena benchmark riil belum terpasang.
 
 Untuk mengaktifkan data nyata dan runner, ikuti [panduan live dan runner](docs/live-and-runner.md). Query token dan discovery sudah diuji dengan CLI resmi dan public demo key; untuk penggunaan bot, gunakan API key Anda sendiri.

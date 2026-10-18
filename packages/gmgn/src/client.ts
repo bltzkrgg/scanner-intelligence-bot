@@ -146,11 +146,11 @@ export class CliGmgnAdapter implements GmgnAdapter {
     return task;
   }
 
-  async getTokenSnapshot(input: string, chain: Chain = "sol"): Promise<MarketSnapshot> {
+  async getTokenSnapshot(input: string, chain: Chain = "sol", options?: { forceRefresh?: boolean }): Promise<MarketSnapshot> {
     const mint = normalizeAddress(input, chain);
     const key = `${chain}:${mint}`;
     const cached = this.cache.get(key);
-    if (cached && cached.until > Date.now()) return cached.value;
+    if (!options?.forceRefresh && cached && cached.until > Date.now()) return cached.value;
     const pending = this.pending.get(key);
     if (pending) return pending;
     const task = this.fetchSnapshot(mint, chain);

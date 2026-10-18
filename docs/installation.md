@@ -171,6 +171,8 @@ So11111111111111111111111111111111111111112
 
 Pada mode mock, bot mengirim pemberitahuan MODE DEMO tanpa skor/klasifikasi/win rate. Untuk laporan token yang sebenarnya, aktifkan provider live sesuai [panduan live dan runner](live-and-runner.md). `/scan <alamat_mint>` tetap tersedia. Kirim satu alamat mint saja dalam pesan; pesan biasa diabaikan.
 
+Mode live menampilkan laporan ringkas dengan enam tombol inline (Refresh, Detail Risiko, Status Runner, GMGN, Explorer, Salin CA). Waktu data memakai WIB, skor eksperimen terpisah dari filter alert admin. Detail dan perilaku refresh ada di [panduan laporan Telegram](telegram-reports.md).
+
 Contoh pengujian setelah startup:
 
 | Pesan | Hasil yang diharapkan |

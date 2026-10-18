@@ -31,6 +31,6 @@ export const gmgnTokenResponseSchema = z
 export type GmgnTokenResponse = z.infer<typeof gmgnTokenResponseSchema>;
 
 export type GmgnAdapter = {
-  getTokenSnapshot(mint: string, chain?: Chain): Promise<MarketSnapshot>;
+  getTokenSnapshot(mint: string, chain?: Chain, options?: { forceRefresh?: boolean }): Promise<MarketSnapshot>;
   discoverTokens?(chain?: Chain): Promise<string[]>;
 };

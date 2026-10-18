@@ -10,10 +10,10 @@ export class IntelligenceScanner {
     readonly chains: Chain[] = ["sol", "bsc", "robinhood"]
   ) {}
 
-  async scan(mintInput: string, chain: Chain = "sol"): Promise<IntelligenceResult> {
+  async scan(mintInput: string, chain: Chain = "sol", options?: { forceRefresh?: boolean }): Promise<IntelligenceResult> {
     if (!this.chains.includes(chain)) throw new Error("Jaringan belum diaktifkan.");
     const mint = normalizeAddress(mintInput, chain);
-    const raw = await this.gmgn.getTokenSnapshot(mint, chain);
+    const raw = await this.gmgn.getTokenSnapshot(mint, chain, options);
     if ((raw.chain && raw.chain !== chain) || normalizeAddress(raw.mint, chain) !== mint) {
       throw new Error("Identitas respons provider tidak sesuai chain/CA yang diminta.");
     }
