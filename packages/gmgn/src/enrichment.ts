@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { normalizeAddress, base58AddressSchema, tokenIntelligenceSchema,
+import { normalizeAddress, base58AddressSchema, evmAddressSchema, tokenIntelligenceSchema,
   type AppConfig, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "./types.js";
 import { ProviderHttp } from "./http.js";
@@ -52,6 +52,9 @@ export class EnrichedAdapter implements GmgnAdapter {
     if (chain === "sol" && this.made && s.intelligence.deployer) {
       await this.optional(s, "MadeOnSol", () => this.developer(s, s.intelligence!.deployer!, options?.forceRefresh));
     } else if (chain === "sol" && this.made) s.dataWarnings.push("MadeOnSol: alamat deployer belum tersedia.");
+    if (chain === "robinhood" && this.made) {
+      await this.optional(s, "MadeOnSol", () => this.robinhoodDeveloper(s, mint, options?.forceRefresh));
+    }
     if (this.fomo) await this.optional(s, "FOMO", () => this.fomoHolders(s, mint, chain, options?.forceRefresh));
     return s;
   }
@@ -114,6 +117,52 @@ export class EnrichedAdapter implements GmgnAdapter {
     s.intelligence!.developerBondedCount = d.total_bonded;
     // Documentation uses both 0..1 and 0..100 bonding_rate: derive from explicit counts instead.
     s.intelligence!.developerBondRatePct = d.total_tokens_deployed > 0 ? d.total_bonded / d.total_tokens_deployed * 100 : null;
+  }
+
+  private async robinhoodDeveloper(s: MarketSnapshot, mint: string, force = false): Promise<void> {
+    let wallet = s.intelligence!.deployer;
+    if (!wallet) {
+      const data = z.object({ chain: z.literal("robinhood"), token: z.object({ address: evmAddressSchema,
+        deployer: z.object({ address: evmAddressSchema }) }) }).parse(
+        await this.made!.request(`/rhc/tokens/${mint}`, undefined, force));
+      if (normalizeAddress(data.token.address, "robinhood") !== mint) throw new Error("Token mismatch");
+      wallet = data.token.deployer.address;
+    }
+    wallet = normalizeAddress(wallet, "robinhood");
+    const data = z.object({ chain: z.literal("robinhood"), deployer: z.object({
+      deployer_address: evmAddressSchema, tokens_deployed: count, graduated: count,
+      graduation_rate: nonnegative.refine((v) => v == null || v <= 1)
+    }) }).parse(await this.made!.request(`/rhc/deployer-hunter/${wallet}`, undefined, force));
+    const d = data.deployer;
+    if (normalizeAddress(d.deployer_address, "robinhood") !== wallet
+      || (d.tokens_deployed != null && d.graduated != null && d.graduated > d.tokens_deployed)) {
+      throw new Error("Invalid RH deployer");
+    }
+    let total = d.tokens_deployed ?? null;
+    let graduated = d.graduated ?? null;
+    if (total === null || graduated === null) {
+      try {
+        const page = z.object({ chain: z.literal("robinhood"), address: evmAddressSchema,
+          is_deployer: z.literal(true), total: z.number().int().nonnegative(), tokens: z.array(z.object({
+            address: evmAddressSchema, is_graduated: z.boolean().nullable().optional()
+          })).max(100)
+        }).parse(await this.made!.request(`/rhc/deployer-hunter/${wallet}/tokens?limit=100&offset=0`, undefined, force));
+        const rows = new Map(page.tokens.map((r) => [normalizeAddress(r.address, "robinhood"), r]));
+        if (normalizeAddress(page.address, "robinhood") !== wallet || rows.size > page.total
+          || rows.size !== page.tokens.length || (total !== null && total !== page.total)) throw new Error("Invalid RH token history");
+        total = page.total;
+        if (rows.size === total && page.tokens.every((r) => typeof r.is_graduated === "boolean")) {
+          graduated = page.tokens.filter((r) => r.is_graduated).length;
+        } else s.dataWarnings!.push("MadeOnSol RH: histori token parsial; jumlah graduated belum dapat dipastikan.");
+      } catch { s.dataWarnings!.push("MadeOnSol RH: jumlah token/graduated belum dapat diverifikasi."); }
+    }
+    if (total !== null && graduated !== null && graduated > total) throw new Error("Invalid RH graduation totals");
+    s.intelligence!.deployer = wallet;
+    s.developerTokenCount = total;
+    s.intelligence!.developerGraduatedCount = graduated;
+    s.intelligence!.developerGraduationRatePct = total === 0 ? null
+      : total !== null && graduated !== null ? graduated / total * 100
+      : d.graduation_rate == null ? null : d.graduation_rate * 100;
   }
 
   private async fomoHolders(s: MarketSnapshot, mint: string, chain: Chain, force = false): Promise<void> {

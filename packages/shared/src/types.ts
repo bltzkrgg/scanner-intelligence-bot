@@ -72,6 +72,8 @@ export const tokenIntelligenceSchema = z.object({
   deployer: z.string().nullable().default(null),
   developerBondedCount: z.number().int().nonnegative().nullable().default(null),
   developerBondRatePct: z.number().min(0).max(100).nullable().default(null),
+  developerGraduatedCount: z.number().int().nonnegative().nullable().default(null),
+  developerGraduationRatePct: z.number().min(0).max(100).nullable().default(null),
   mintAuthorityRevoked: z.boolean().nullable().default(null),
   freezeAuthorityRevoked: z.boolean().nullable().default(null),
   kolHolderCount: z.number().int().nonnegative().nullable().default(null),

@@ -73,8 +73,11 @@ function intelligenceSummary(s: MarketSnapshot, detailed = false): string[] {
     `KOL holder: ${number(i.kolHolderCount, 0)}`,
     `Bundler: ${percent(s.bundlerPct)} | Sniper: ${percent(s.sniperPct)}`,
     i.fomo ? `FOMO Top 100 (${i.fomo.window}): ${i.fomo.matched} trader terdeteksi hold (parsial)` : "FOMO Top 100: belum tersedia",
-    `Developer: ${number(s.developerTokenCount, 0)} token | Berhasil bond: ${number(i.developerBondedCount, 0)} (${percent(i.developerBondRatePct)})`,
+    s.chain === "robinhood"
+      ? `Developer: ${number(s.developerTokenCount, 0)} token | Graduated: ${number(i.developerGraduatedCount, 0)} (${percent(i.developerGraduationRatePct)})`
+      : `Developer: ${number(s.developerTokenCount, 0)} token | Berhasil bond: ${number(i.developerBondedCount, 0)} (${percent(i.developerBondRatePct)})`,
     ...(detailed ? [
+      ...(s.chain === "robinhood" ? ["Graduation RH: mencapai peak market cap $40K menurut MadeOnSol, bukan bonding curve Solana."] : []),
       `Mint authority: ${authority(i.mintAuthorityRevoked)} | Freeze authority: ${authority(i.freezeAuthorityRevoked)}`,
       `Holder teramati (maks. 100 wallet): ${percent(i.top100ObservedPct)} supply`,
       `Kelompok pendanaan terbesar teramati: ${percent(i.linkedFundingPct)} supply; bukan bukti satu pemilik.`,

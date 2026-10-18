@@ -36,7 +36,9 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
     ["FOMO Top 100", i.fomo ? `${i.fomo.matched} terdeteksi • ${i.fomo.window} • parsial` : "N/A"],
     ["Bundler", present(r.bundlerPct) ? `${number(r.bundlerPct)}% supply` : "N/A"],
     ["Sniper", present(r.sniperPct) ? `${number(r.sniperPct)}% supply` : "N/A"],
-    ["Dev bonded", i.developerBondedCount !== null ? `${number(i.developerBondedCount, 0)} • ${number(i.developerBondRatePct)}%` : "N/A"],
+    [r.chain === "robinhood" ? "Dev graduated" : "Dev bonded", r.chain === "robinhood"
+      ? `${number(i.developerGraduatedCount, 0)} • ${present(i.developerGraduationRatePct) ? `${number(i.developerGraduationRatePct)}%` : "N/A"}`
+      : i.developerBondedCount !== null ? `${number(i.developerBondedCount, 0)} • ${number(i.developerBondRatePct)}%` : "N/A"],
     ["Linked funding", present(i.linkedFundingPct) ? `${number(i.linkedFundingPct)}% teramati` : "N/A"]
   ]) : null;
   let status: string;

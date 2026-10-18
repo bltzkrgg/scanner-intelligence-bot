@@ -44,7 +44,7 @@ pm2 restart ecosystem.config.cjs --only scanner-telegram --update-env
 | GMGN CLI | Market/security, KOL, smart money, Flow 5m jika tersedia; opsional top 100 holder dan kelompok pendanaan | Solana, BSC, RH |
 | Solana Tracker | Discovery utama `/search`, DEX pool berlikuiditas terbesar yang segar, creator token, bundler/sniper supply exposure | Solana |
 | Helius | RPC `getAccountInfo` jsonParsed, verifikasi mint/freeze authority dan owner program SPL/Token-2022 | Solana |
-| MadeOnSol | `/deployer-hunter/{wallet}`: jumlah deploy dan berhasil bond, rate dari dua jumlah tersebut | Solana |
+| MadeOnSol | Solana `/deployer-hunter/{wallet}`: deploy/bond; RH `/rhc/deployer-hunter/{address}` dan `/tokens`: deploy/graduation | Solana, RH |
 | FOMO API | Leaderboard 100 trader + top holders token; identitas trader dideduplikasi userId, handle dicocokkan case-insensitive | Solana, BSC, RH jika endpoint menjawab |
 
 Base URL dan auth: GMGN memakai CLI/API key yang sudah ada; Tracker `https://data.solanatracker.io` memakai x-api-key; Helius `https://mainnet.helius-rpc.com` memakai api-key; MadeOnSol `https://madeonsol.com/api/v1` dan FOMO `https://api.fomoapi.io` memakai Bearer. Kunci tidak diteruskan ke domain lain; redirect ditolak.
@@ -58,6 +58,7 @@ Harga, volume, market cap dan fee tetap konsisten dari GMGN. DEX yang dilaporkan
 - Linked funding: kelompok dalam sampel yang mempunyai sumber pendanaan native sama. Ini indikasi pendanaan terkait, bukan full bubble map atau bukti satu pemilik. Data funding hilang menghasilkan N/A.
 - FOMO: `N trader terdeteksi hold (parsial)` pada window yang dipilih. Top-holder endpoint tidak menjamin seluruh trader terjangkau. Nol terdeteksi bukan bukti tidak ada Top 100 yang hold. Snapshot leaderboard lebih dari 15 menit, fallback/stale holders dan available=false ditolak; normal holder response tidak menjamin timestamp upstream.
 - Bonding rate: bonded/deployed; total deploy nol menghasilkan rate N/A, bukan 0%. Statistik dibatasi cakupan MadeOnSol dan bukan win rate.
+- Graduation RH: milestone peak market cap $40K menurut MadeOnSol, bukan bonding curve Solana. Scan dan runner menampilkan Graduated/Dev graduated. Bot memvalidasi chain dan alamat developer; bila alamat belum ada dari GMGN, bot mengambil `/rhc/tokens/{CA}`. Jumlah graduated memakai total eksplisit atau halaman token yang lengkap (maksimal 100 token), bukan perkalian persentase yang dibulatkan. Histori lebih panjang/parsial membuat jumlah graduated N/A; graduation_rate eksplisit provider tetap dapat ditampilkan sebagai persen. Daftar `recent_tokens` bukan seluruh histori dan tidak dipakai untuk menghitung rate. Tidak menambah threshold atau skor profit baru.
 - Flow 5m: proporsi jumlah transaksi GMGN buys_5m/sells_5m; jika tidak tersedia, tetap Flow 1h dengan label jendela benar. Total nol menghasilkan N/A.
 - Field rug history/rate developer dihapus dari tipe, fixture, syarat kelengkapan, laporan dan metrik skor historis. Bobot metrik tersisa dinormalisasi seperti sebelumnya; skor historis lama dan baru tidak identik. Tidak diganti skor bonding yang belum dikalibrasi.
 
@@ -67,7 +68,9 @@ Cache enrichment default 300 detik per endpoint dibagi oleh scan dan runner dala
 
 ## Batasan yang Belum Diimplementasikan
 
-Mengisi semua key tidak berarti semua field lengkap. Posisi likuiditas Meteora, pemeriksaan saldo on-chain wallet FOMO, full transfer cluster/bubble map, LP locked %, Dex Paid dan smart-money USD flow 1h belum tersedia pada implementasi ini. Helius saat ini hanya memverifikasi authority; FOMO hold adalah laporan provider, bukan verifikasi saldo Helius. Statistik deployer RH berbeda definisi dengan bonding curve Solana dan belum dimasukkan. ETH belum menjadi jaringan aplikasi yang aktif. Bank smart wallet user dan Discord juga belum diaktifkan oleh integrasi ini.
+Mengisi semua key tidak berarti semua field lengkap. Posisi likuiditas Meteora, pemeriksaan saldo on-chain wallet FOMO, full transfer cluster/bubble map, LP locked %, Dex Paid dan smart-money USD flow 1h belum tersedia pada implementasi ini. Helius saat ini hanya memverifikasi authority; FOMO hold adalah laporan provider, bukan verifikasi saldo Helius. Histori deployer RH di luar 100 token tidak dipaginasi otomatis; statistik total hanya dipakai jika eksplisit dari provider. ETH belum menjadi jaringan aplikasi yang aktif. Bank smart wallet user dan Discord juga belum diaktifkan oleh integrasi ini.
+
+RH memakai `MADEONSOL_API_KEY` dan `MADEONSOL_ENABLED` yang sama, tanpa variabel env tambahan. Enrichment RH lama dalam state mendapat field graduation null saat dibaca, bukan diisi dari bonding Solana atau data masa depan. Format baru hanya berlaku pada query/pengiriman berikutnya.
 
 Format berikutnya tetap menggunakan tombol GMGN / Detail Runner / Salin CA. Detail risiko scan menampilkan authority, kelompok pendanaan dan cakupan holder; laporan utama dan alert runner menampilkan ringkasan FOMO/KOL/developer bila sumber tersedia. Catatan provider gagal dan label parsial tetap ditampilkan. Tidak menambahkan probabilitas profit atau kandidat palsu.
 

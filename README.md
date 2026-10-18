@@ -18,7 +18,7 @@ Admin kini bisa mengubah filter Solana/BSC/RH dengan `/setconfig` tanpa restart,
 
 Notifikasi runner memakai teks tebal MARKET / ACTIVITY / STATUS tanpa kotak copy, Flow 5m jika tersedia (fallback 1h berlabel), N/A untuk data kosong, dan tombol GMGN / Detail Runner / Salin CA. Footer waktu/Ref dihapus; peringatan tertunda dan risiko spesifik tetap tampil. Tombol explorer dan Refresh tidak muncul pada alert runner; laporan scan biasa tetap memiliki tombolnya. Lihat [format alert runner](docs/runner-alert-format.md).
 
-Scan CA dan runner mendukung enrichment opsional Solana Tracker, Helius, MadeOnSol dan FOMO. Isi key di `.env`; lihat [instalasi, cakupan dan batasan provider](docs/providers.md). Jumlah token developer dan berhasil bond tetap ditampilkan; riwayat rug developer tidak dipakai dalam laporan atau skor.
+Scan CA dan runner mendukung enrichment opsional Solana Tracker, Helius, MadeOnSol dan FOMO. Isi key di `.env`; lihat [instalasi, cakupan dan batasan provider](docs/providers.md). MadeOnSol menampilkan jumlah token/bonding Solana serta graduation Robinhood dengan key yang sama; riwayat rug developer tidak dipakai dalam laporan atau skor.
 
 ## Mulai
 
