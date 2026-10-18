@@ -177,7 +177,7 @@ Referensi: [GMGN market skill resmi](https://github.com/GMGNAI/gmgn-skills/blob/
 
 ## Contoh Pesan
 
-Data di bawah ilustrasi, bukan hasil deteksi pasar. Pesan aktual juga memuat waktu data UTC, Event ID, link command detail, serta warning provider jika ada.
+**Format aktif sekarang:** blok MARKET / ACTIVITY / STATUS, waktu WIB, referensi pendek, dan tombol GMGN / explorer / Refresh / Detail Runner / Salin CA. Contoh lengkap dan aturan histori lama ada di [format alert runner](runner-alert-format.md). Contoh plaintext di bawah dipertahankan sebagai referensi format lama, bukan tampilan aktif; data ilustrasi, bukan deteksi pasar.
 
 ```text
 KANDIDAT TOKEN RUNNER BARU

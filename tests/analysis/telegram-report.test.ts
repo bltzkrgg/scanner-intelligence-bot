@@ -86,6 +86,16 @@ describe("compact Telegram report actions", () => {
     expect(request).not.toHaveBeenCalledWith("editMessageText", expect.anything());
   });
 
+  it("opens a fresh report from a runner alert without editing the historical alert", async () => {
+    const { press, scan, request } = await setup();
+    await press(`report:n:robinhood:${evm}`);
+    expect(scan).toHaveBeenCalledExactlyOnceWith(evm, "robinhood", { forceRefresh: true });
+    expect(request).toHaveBeenCalledWith("sendMessage", expect.objectContaining({
+      text: expect.stringContaining("*Market Cap*"), parse_mode: "MarkdownV2", reply_markup: expect.anything()
+    }));
+    expect(request).not.toHaveBeenCalledWith("editMessageText", expect.anything());
+  });
+
   it("rejects invalid or disabled-chain buttons without querying GMGN", async () => {
     const { press, scan, request } = await setup(["sol"]);
     await press(`report:f:bsc:${evm}`);

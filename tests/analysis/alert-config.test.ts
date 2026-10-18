@@ -115,7 +115,7 @@ describe("runtime runner alert settings", () => {
     expect(monitor.snapshot().pendingAlerts.map((e) => e.kind)).toEqual(["spike"]);
     const alert = monitor.snapshot().pendingAlerts[0];
     expect(alert.record.spikeMultiplier).toBe(5);
-    expect(formatRunnerNotification(alert)).toContain("VOLUME SPIKE TERDETEKSI");
+    expect(formatRunnerNotification(alert)).toContain("SOLANA VOLUME SPIKE");
     const restored = new RunnerMonitor(adapter, file, true);
     await restored.init();
     await observe(restored, 16, 300000);

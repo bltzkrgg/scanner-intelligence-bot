@@ -101,7 +101,7 @@ Solana/BSC/RH memakai filter admin melalui `/setconfig`; contoh pesan terkini, s
 
 Tidak ada pesan untuk setiap perubahan harga. Angka 2x/5x bukan hasil dari harga peluncuran atau ATH. Kandidat bisa gagal, dan sampel berkala dapat melewatkan pergerakan di antara query. Tidak ada notifikasi transaksi wallet pada versi ini.
 
-Contoh struktur alert (data ilustrasi, bukan token nyata):
+Format aktif sekarang memakai blok monospace MARKET / ACTIVITY / STATUS dengan tombol aksi; lihat [contoh terbaru](runner-alert-format.md). Contoh plaintext berikut adalah referensi format lama (data ilustrasi, bukan token nyata):
 
 ```text
 KANDIDAT TOKEN RUNNER BARU
@@ -120,7 +120,7 @@ Harga berdasarkan sampel saat query. Kandidat bukan jaminan kenaikan atau sinyal
 
 Antrean alert disimpan bersama state sebelum pengiriman. Maksimal pesan per jaringan mengikuti maxPerScan masing-masing (default 5), dengan batas gabungan 50 per flush dan jeda antar pesan. Pesan gagal atau di luar kuota tetap antre untuk siklus berikutnya; error terlihat di `/runners` dan `/status`. Data event lebih dari 15 menit diberi label tertunda. Alert dari chain yang dinonaktifkan ditahan sampai chain diaktifkan lagi atau histori dihapus.
 
-Pengiriman umumnya sekali per event, tetapi bukan jaminan exactly-once: crash setelah Telegram menerima pesan namun sebelum acknowledgment tersimpan dapat menghasilkan duplikat saat restart. Event ID membantu mengenalinya. Mengganti chat tujuan menyebabkan alert tertunda berikutnya dikirim ke tujuan baru. State lama versi 1 dimigrasikan tanpa mengirim ulang kandidat/milestone historis.
+Pengiriman umumnya sekali per event, tetapi bukan jaminan exactly-once: crash setelah Telegram menerima pesan namun sebelum acknowledgment tersimpan dapat menghasilkan duplikat saat restart. Ref pendek pada pesan berasal dari Event ID lengkap yang tetap tersimpan dalam state. Mengganti chat tujuan menyebabkan alert tertunda berikutnya dikirim ke tujuan baru. State lama versi 1 dimigrasikan tanpa mengirim ulang kandidat/milestone historis.
 
 Untuk uji pengiriman, admin kirim `/runner_test`. Pesan ini ditandai TES dan tidak membuat kandidat palsu atau mengubah histori. Jika berhasil tetapi alert kandidat belum ada, periksa `/runners`: bisa belum ada token memenuhi syarat, runner dijeda, atau data provider belum lengkap.
 

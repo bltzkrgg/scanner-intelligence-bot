@@ -55,6 +55,10 @@ const recordSchema = z.object({
   totalFeesNative: z.number().nonnegative().nullable().default(null),
   feesNativeSymbol: z.enum(["SOL", "BNB", "ETH"]).nullable().default(null),
   dexAgeMinutes: z.number().nonnegative().nullable().default(null),
+  buys1h: z.number().int().nonnegative().nullable().default(null),
+  sells1h: z.number().int().nonnegative().nullable().default(null),
+  top10HolderPct: z.number().min(0).max(100).nullable().default(null),
+  smartMoneyHolderCount: z.number().int().nonnegative().nullable().default(null),
   baselineVolume5mUsd: z.number().nonnegative().nullable().default(null),
   spikeMultiplier: z.number().nonnegative().nullable().default(null),
   qualification: z.enum(["legacy", "configured", "spike"]).default("legacy"),
@@ -186,6 +190,8 @@ export class RunnerMonitor {
         next.volumeBaselines = next.volumeBaselines.slice(0, 500);
       }
       const details = {
+        buys1h: s.buys1h, sells1h: s.sells1h, top10HolderPct: s.top10HolderPct,
+        smartMoneyHolderCount: s.smartMoneyHolderCount,
         volume5mUsd: s.volume5mUsd ?? null, swaps5m: s.swaps5m ?? null,
         totalFeesNative: s.totalFeesNative ?? null, feesNativeSymbol: s.feesNativeSymbol ?? null,
         dexAgeMinutes: s.dexAgeMinutes ?? null, baselineVolume5mUsd: baselineVolume,
@@ -331,25 +337,4 @@ function enqueue(state: RunnerState, kind: RunnerEvent["kind"], record: RunnerRe
   }
 }
 
-export function formatRunnerNotification(event: RunnerEvent): string {
-  const r = event.record;
-  const number = (value: number | null, digits = 2): string => value === null ? "belum tersedia"
-    : value.toLocaleString("en-US", { maximumFractionDigits: digits });
-  return [
-    event.kind === "candidate" ? "KANDIDAT TOKEN RUNNER BARU" : event.kind === "spike" ? "VOLUME SPIKE TERDETEKSI" : `TOKEN RUNNER: ${event.kind.toUpperCase()} TERAMATI`,
-    Date.now() - Date.parse(event.record.lastSeenAt) > 15 * 60_000 ? "NOTIFIKASI TERTUNDA: data saat event, bukan harga terbaru." : "",
-    `${CHAIN_NAMES[r.chain]} | ${r.symbol}\nCA: ${r.mint}`,
-    [`Harga: $${number(r.latestPrice, 10)}`, `Market cap: $${number(r.marketCapUsd)}`,
-      `Likuiditas: $${number(r.liquidityUsd)}`, `Volume 5m: $${number(r.volume5mUsd)}`,
-      `Swaps 5m: ${number(r.swaps5m, 0)}`, `Total fees GMGN: ${number(r.totalFeesNative, 6)} ${r.feesNativeSymbol ?? "native"}`,
-      `Umur DEX/migration: ${number(r.dexAgeMinutes)} menit`].join("\n"),
-    event.kind === "spike" ? `Lonjakan: ${number(r.spikeMultiplier)}x\nBaseline 5m: $${number(r.baselineVolume5mUsd)} (rata-rata 3 jendela sebelumnya)`
-      : event.kind === "candidate" ? `Lolos: ${r.qualification === "legacy" ? "rule eksperimen BSC" : "filter alert admin"}. Bukan skor profit.`
-      : `Sejak deteksi: ${(r.latestPrice / r.initialPrice).toFixed(2)}x (${((r.latestPrice / r.initialPrice - 1) * 100).toFixed(2)}%)\nHarga awal: $${number(r.initialPrice, 10)}`,
-    ...(r.riskNotes.length ? [`Risiko / keterbatasan: ${r.riskNotes.join(" ")}`] : []),
-    `Data: GMGN CLI | ${r.lastSeenAt}`,
-    `Detail: /runner ${event.record.chain} ${event.record.mint}`,
-    `Event ID: ${event.id}`,
-    "Harga berdasarkan sampel saat query. Filter momentum bukan pemeriksaan risiko lengkap. Kandidat bukan jaminan kenaikan atau sinyal beli."
-  ].join("\n\n");
-}
+export { formatRunnerNotification } from "./runner-notification.js";

@@ -92,7 +92,10 @@ describe("persistent runner notifications", () => {
     await sendRunnerNotifications(bot, monitor, loadConfig({ TELEGRAM_STARTUP_CHAT_ID: "12" }));
     expect(request).not.toHaveBeenCalled();
     await sendRunnerNotifications(bot, monitor, loadConfig({ TELEGRAM_RUNNER_CHAT_ID: "-100456" }));
-    expect(request).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ chat_id: "-100456", text: expect.stringContaining("KANDIDAT TOKEN RUNNER") }));
+    expect(request).toHaveBeenCalledWith("sendMessage", expect.objectContaining({
+      chat_id: "-100456", text: expect.stringContaining("SOLANA TOKEN RUNNER"), parse_mode: "HTML",
+      reply_markup: expect.objectContaining({ inline_keyboard: expect.any(Array) })
+    }));
     expect(monitor.snapshot().pendingAlerts).toHaveLength(0);
   });
 

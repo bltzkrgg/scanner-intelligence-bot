@@ -13,13 +13,14 @@ export function registerScanHandlers(bot: Bot, scanner: IntelligenceScanner, run
     await scanInput(ctx, `${ctx.match[1]} ${ctx.match[2]}`, scanner, runner);
   });
   const refreshing = new Set<string>();
-  bot.callbackQuery(/^report:([fdr]):(sol|bsc|robinhood):(.+)$/, async (ctx) => {
+  bot.callbackQuery(/^report:([fdrn]):(sol|bsc|robinhood):(.+)$/, async (ctx) => {
     const input = parseTokenInput(`${ctx.match[2]} ${ctx.match[3]}`);
     if (!input?.chain || !scanner.chains.includes(input.chain)) {
       await ctx.answerCallbackQuery({ text: "CA tidak valid atau jaringan belum diaktifkan.", show_alert: true });
       return;
     }
     const action = ctx.match[1];
+    const refresh = action === "f" || action === "n";
     const key = ctx.callbackQuery.inline_message_id ?? `${ctx.chat?.id}:${ctx.callbackQuery.message?.message_id}`;
     if (refreshing.has(key)) {
       await ctx.answerCallbackQuery({ text: "Permintaan untuk laporan ini masih diproses." });
@@ -27,8 +28,8 @@ export function registerScanHandlers(bot: Bot, scanner: IntelligenceScanner, run
     }
     refreshing.add(key);
     try {
-      await ctx.answerCallbackQuery({ text: action === "f" ? "Mengambil data terbaru..." : "Mengambil detail..." });
-      const result = await scanner.scan(input.mint, input.chain, action === "f" ? { forceRefresh: true } : undefined);
+      await ctx.answerCallbackQuery({ text: refresh ? "Mengambil data terbaru..." : "Mengambil detail..." });
+      const result = await scanner.scan(input.mint, input.chain, refresh ? { forceRefresh: true } : undefined);
       const context = await observeResult(result, runner);
       if (action === "f") {
         await ctx.editMessageText(formatTelegramReport(result, context), {
@@ -36,8 +37,9 @@ export function registerScanHandlers(bot: Bot, scanner: IntelligenceScanner, run
           reply_markup: result.snapshot.source === "fixture" ? undefined : reportKeyboard(input.chain, input.mint)
         });
       } else {
-        await ctx.reply(action === "d" ? formatTelegramRisk(result) : formatTelegramRunner(result, context), {
-          parse_mode: "MarkdownV2", link_preview_options: { is_disabled: true }
+        await ctx.reply(action === "n" ? formatTelegramReport(result, context) : action === "d" ? formatTelegramRisk(result) : formatTelegramRunner(result, context), {
+          parse_mode: "MarkdownV2", link_preview_options: { is_disabled: true },
+          reply_markup: action === "n" && result.snapshot.source !== "fixture" ? reportKeyboard(input.chain, input.mint) : undefined
         });
       }
     } catch (error) {

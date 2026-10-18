@@ -141,7 +141,7 @@ describe("BSC configurable runner", () => {
     expect(alert.record.baselineVolume5mUsd).toBe(20000);
     expect(alert.record.spikeMultiplier).toBe(3);
     const text = formatRunnerNotification(alert);
-    expect(text).toContain("BSC | LIVE");
+    expect(text).toContain("BSC TOKEN RUNNER");
     expect(text).toContain("0.5 BNB");
     expect(text).not.toContain(" SOL");
     const restored = new RunnerMonitor(adapter, file, true, ["bsc", "robinhood"]);

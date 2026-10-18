@@ -1,6 +1,7 @@
 import { GrammyError, HttpError, type Bot } from "grammy";
 import { CHAIN_NAMES, logger, type AppConfig, type Chain } from "@sti/shared";
 import { alertsEnabled, alertInterval, formatRunnerNotification, type RunnerMonitor } from "@sti/analysis";
+import { runnerNotificationKeyboard } from "./handlers/report-keyboard.js";
 
 type LifecycleDelivery = { event: string; result: "terkirim" | "gagal" | "nonaktif"; error?: string };
 const deliveries = new WeakMap<Bot, LifecycleDelivery>();
@@ -87,7 +88,10 @@ export async function sendRunnerNotifications(bot: Bot, runner: RunnerMonitor, c
     const delay = nextSendAt - Date.now();
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
     if (!runner.active) throw new Error("Runner stopped");
-    await bot.api.sendMessage(config.telegramRunnerChatId!, formatRunnerNotification(event));
+    await bot.api.sendMessage(config.telegramRunnerChatId!, formatRunnerNotification(event), {
+      parse_mode: "HTML", link_preview_options: { is_disabled: true },
+      reply_markup: runnerNotificationKeyboard(event.record.chain, event.record.mint)
+    });
     nextSendAt = Date.now() + 1100;
   }, chains);
 }
