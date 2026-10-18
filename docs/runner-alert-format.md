@@ -1,80 +1,68 @@
 # Format Notifikasi Token Runner
 
-Alert Telegram memakai judul per jaringan, blok monospace MARKET / ACTIVITY / STATUS, angka ringkas, CA monospace dan inline keyboard. Ini mengubah presentasi, bukan threshold atau rule penilaian.
+Alert memakai teks HTML biasa dengan judul dan nilai tebal, struktur pohon MARKET / ACTIVITY / STATUS, dan tombol Telegram. Tidak memakai `pre` atau `code`, sehingga tidak muncul header copy pada blok pesan. CA tetap lengkap; tombol Salin CA tetap tersedia.
 
-Contoh ilustrasi kandidat Solana (bukan hasil deteksi nyata):
+Contoh ilustrasi, bukan hasil deteksi nyata (judul bagian dan nilai ditampilkan tebal di Telegram):
 
 ```text
 🟣 SOLANA TOKEN RUNNER
 
-EXAMPLE · 18m DEX
+💊 EXAMPLE • 18m
 Solana | GMGN
 
 ┌ MARKET
-├ Price       : $0.00042
-├ MC          : $420K
-├ Vol 5m      : $185K
-├ Swaps 5m    : 120
-├ Fees        : 12.5 SOL
-└ Liquidity   : $65K
+├ Price     : $0.00042
+├ MC        : $420K
+├ Vol 5m    : $185K
+├ Swaps 5m  : 120
+├ Fees      : 12.5 SOL
+└ Liquidity : $65K
 
 ┌ ACTIVITY
-├ Buy/Sell 1h : 680 / 728
-├ Top 10      : 14.51%
-└ Smart Money : 118
+├ Flow 1h  : Buy 56% • Sell 44%
+├ Top 10   : 14.51%
+├ Wallets  : N/A
+└ Dex Paid : N/A
 
 ┌ STATUS
 └ 🟢 SOLANA QUALIFIED
-  VOL 5m • MC • FEES • AGE
-
-Hasil filter alert admin saat deteksi, bukan status terkini.
+   VOL • MC • FEES • AGE
 
 CA
 <CA lengkap>
-
-Data event: <waktu WIB>
-Ref: <referensi pendek>
-N/A = belum tersedia. Smart Money adalah label provider.
-Filter momentum bukan audit risiko. Bukan rekomendasi beli/jual.
 ```
+
+Baris Data event, Ref, penjelasan N/A dan disclaimer umum dihapus dari pesan. Timestamp dan Event ID tetap tersimpan pada state/outbox untuk deduplikasi. Catatan risiko spesifik provider dan peringatan ALERT TERTUNDA untuk event lebih dari 15 menit tetap ditampilkan. Snapshot antrean tidak diisi ulang dengan harga terbaru.
+
+## Sumber Data
+
+- Flow 1h dihitung dari proporsi jumlah transaksi beli/jual satu jam pada snapshot, bukan volume USD atau flow lima menit. Persentase dibulatkan ke bilangan bulat dan totalnya 100%. Jika salah satu jumlah tidak tersedia atau total transaksi nol, hasilnya N/A.
+- Top 10 adalah persentase kepemilikan supply.
+- Wallets dan Dex Paid masih N/A karena rincian wallet dan status DEX paid belum tersimpan pada snapshot runner. Jumlah smart money holder tidak dipakai sebagai pengganti rincian wallet.
+- Subjudul memakai jaringan dan GMGN. Nama token panjang/nama DEX belum tersimpan pada snapshot; bot tidak mengarang PumpSwap atau nama pool dari simbol token.
+- Umur adalah umur DEX/migration yang tersedia, bukan umur pembuatan token. Jika tidak tersedia, umur tidak ditampilkan.
+- Angka pasar memakai K/M/B/T; fees dibulatkan maksimal dua desimal hanya untuk tampilan, kecuali fees positif di bawah 0.01 memakai hingga delapan desimal. Nilai mentah dan filter tidak berubah.
+- Nilai kosong memakai N/A tanpa unit; nol yang diketahui tetap nol. Unit fees harus cocok dengan jaringan.
 
 ## Jaringan dan Status
 
-- Solana: judul ungu SOLANA TOKEN RUNNER, fees SOL, kandidat memakai VOL 5m / MC / FEES / AGE.
-- BSC: judul kuning BSC TOKEN RUNNER, fees BNB, kandidat memakai VOL 5m / MC / FEES / AGE.
-- Robinhood: judul hijau ROBINHOOD TOKEN RUNNER, fees ETH, kandidat memakai VOL 5m / FEES. Tidak mengklaim lolos syarat umur/market cap yang tidak menjadi filter RH.
-- Spike memakai status SOLANA/BSC VOLUME SPIKE, rasio lonjakan dan baseline 3 jendela 5m sebelumnya. Rasio dan nilai baseline ditampilkan pada dua baris terpisah; kalimat penjelasan "Lonjakan saat event; baseline rata-rata 3 jendela 5m sebelumnya." dihapus dari pesan. Perhitungan baseline tidak berubah. Ini bukan label kandidat baru atau probabilitas profit.
-- Milestone memakai 2X/5X TERAMATI, kelipatan aktual saat query dan harga awal deteksi. Bukan target profit atau ATH.
+Solana memakai judul ungu dan fees SOL; BSC kuning dan fees BNB; Robinhood hijau dan fees ETH. Kandidat Solana/BSC memakai VOL / MC / FEES / AGE, sedangkan RH hanya VOL / FEES.
 
-QUALIFIED berarti metadata event menyatakan lolos filter saat deteksi dan metrik wajib pada event masih lengkap, bukan hasil evaluasi ulang dengan config terbaru. Event dari rule lama ditandai HISTORI DETEKSI LAMA, bukan dilabeli rule BSC untuk semua jaringan. Misalnya histori RH lama: `Filter RH terbaru belum terverifikasi`. Jika metadata kandidat baru tidak lengkap, statusnya DATA DETEKSI BELUM LENGKAP.
+QUALIFIED berarti event lolos filter saat deteksi dan metrik wajib lengkap, bukan evaluasi ulang dengan config sekarang atau jaminan keamanan/profit. Event rule lama memakai HISTORI DETEKSI LAMA. Data wajib hilang tidak menghasilkan QUALIFIED.
 
-Event lebih dari 15 menit diberi ALERT TERTUNDA di atas blok data. Harga dan waktu tetap dari snapshot event asli; bot tidak mengganti harga lama dengan hasil query baru hanya agar alert tampak segar.
+Spike memakai SOLANA/BSC VOLUME SPIKE dengan lonjakan dan baseline pada baris terpisah. Milestone memakai 2X/5X TERAMATI dengan kelipatan aktual dan harga awal. Penjelasan histori lama dan milestone tetap ditampilkan agar tidak disalahartikan sebagai kandidat baru.
 
-## Data Kosong dan Aktivitas
-
-Data kosong ditampilkan N/A tanpa simbol mata uang, unit native, atau akhiran menit. Nol yang benar-benar tersedia tetap ditampilkan sebagai nol. Unit fees hanya ditampilkan jika metadata native cocok dengan chain; unit hilang/tidak cocok menghasilkan N/A.
-
-Buy/Sell 1h adalah jumlah transaksi beli/jual pada snapshot, bukan volume USD atau arus smart money. Top 10 adalah persentase kepemilikan supply. Smart Money adalah jumlah holder berlabel provider, bukan bank wallet user. Wallet individual, Flow 5m dan Dex Paid tidak ditampilkan karena sumbernya belum terhubung.
-
-Field aktivitas baru disimpan untuk observasi berikutnya. Snapshot antrean lama yang belum memuat field tersebut mendapat null/N/A; tidak diisi dari snapshot terbaru atau angka perkiraan. Identitas event, timestamp dan harga antrean tidak berubah. Skema tetap versi 3 dengan field tambahan yang kompatibel untuk pembacaan state lama; cadangkan state sebelum upgrade/rollback seperti biasa.
-
-## Tombol
+## Tombol dan Klien
 
 ```text
 [ GMGN ]       [ Detail Runner ]
 [ Salin CA ]
 ```
 
-GMGN mengikuti jaringan token, bukan bentuk CA saja. Tombol Solscan/BscScan/Explorer dan Refresh dihapus dari notifikasi runner pada semua jaringan. Detail Runner membuka penilaian terkini dan histori chain+CA; Salin CA memakai tombol copy native Telegram dengan CA monospace sebagai cadangan klien lama. Laporan scan biasa tetap mempunyai tombol explorer dan Refresh. Callback pada alert lama tetap didukung agar pesan yang sudah terkirim tidak rusak.
+GMGN mengikuti jaringan token. Detail Runner membuka data terkini dan histori chain+CA. Salin CA memakai copy native Telegram. Explorer dan Refresh tetap tidak muncul pada alert runner; laporan scan biasa tidak berubah. Callback pesan lama tetap didukung.
 
-## Mobile dan Desktop
+Mobile dan desktop menerima HTML dan keyboard yang sama. Teks biasa dapat membungkus sesuai layar tanpa code block; font proporsional tidak menjamin titik dua sejajar persis pada semua klien. Tidak ada CSS atau deteksi perangkat pada pesan bot.
 
-Kedua klien menerima struktur pesan dan keyboard yang sama. Padding label dipadatkan per bagian; baris data yang melebihi 30 karakter dipindah ke baris nilai tersendiri dan dibungkus pada spasi. Baris status yang panjang juga dipisah, termasuk lonjakan/baseline dan harga awal milestone. Angka, unit, CA, dan catatan risiko tidak dipotong untuk mengejar lebar layar. Tanggal dan referensi berada pada baris terpisah. Tidak ada perubahan threshold atau nilai mentah dalam state.
+Teks provider di-escape dan preview tautan dimatikan. Format berlaku pada pengiriman berikutnya, bukan mengedit pesan lama. Pengujian lokal memakai renderer dan transport Telegram mock, bukan screenshot aplikasi Telegram asli. `/runner_test` bukan kandidat palsu.
 
-Layout ini mengurangi kebutuhan scroll horizontal untuk angka umum pada mobile; font, skala aksesibilitas dan rendering code block tetap dikendalikan aplikasi Telegram. Tidak ada deteksi perangkat atau CSS khusus pada pesan bot. Nilai numerik tunggal yang ekstrem/panjang masih dapat memerlukan scroll native. Tes mencakup batas kolom pada contoh mobile, bukan screenshot dari perangkat Telegram asli.
-
-Renderer memakai HTML Telegram dengan bold, pre dan code, escape teks provider, dan preview tautan dinonaktifkan. Referensi pendek adalah 12 karakter awal SHA-256 Event ID untuk membantu mengenali duplikat; Event ID lengkap tetap tersimpan pada outbox, tidak diganti sebagai kunci deduplikasi. Kegagalan kirim mempertahankan antrean seperti sebelumnya.
-
-Format berlaku pada alert berikutnya dan event yang belum terkirim setelah upgrade; pesan yang sudah terkirim tidak diubah otomatis. `/runner_test` tetap tes pengiriman biasa, bukan kandidat palsu. Pengujian lokal mencakup renderer dan Telegram API mock; tampilan akhir mengikuti klien Telegram dan perlu diperiksa setelah deploy.
-
-Referensi teknis: [HTML Telegram](https://core.telegram.org/bots/api#html-style). Pengaturan filter: [runner-config.md](runner-config.md).
+Pengaturan filter: [runner-config.md](runner-config.md).

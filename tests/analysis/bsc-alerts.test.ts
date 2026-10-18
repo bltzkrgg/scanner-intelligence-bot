@@ -93,7 +93,7 @@ describe("BSC configurable runner", () => {
     expect(monitor.snapshot().records).toHaveLength(1);
     expect(monitor.snapshot().records[0].score).toBeLessThan(70);
     expect(monitor.snapshot().records[0].qualification).toBe("configured");
-    expect(formatRunnerNotification(monitor.snapshot().pendingAlerts[0])).toContain("filter alert admin");
+    expect(formatRunnerNotification(monitor.snapshot().pendingAlerts[0])).toContain("BSC QUALIFIED");
   });
 
   it("polls BSC on its own schedule and stops polling when disabled", async () => {

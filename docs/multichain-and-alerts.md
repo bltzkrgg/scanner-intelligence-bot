@@ -101,7 +101,7 @@ Solana/BSC/RH memakai filter admin melalui `/setconfig`; contoh pesan terkini, s
 
 Tidak ada pesan untuk setiap perubahan harga. Angka 2x/5x bukan hasil dari harga peluncuran atau ATH. Kandidat bisa gagal, dan sampel berkala dapat melewatkan pergerakan di antara query. Tidak ada notifikasi transaksi wallet pada versi ini.
 
-Format aktif sekarang memakai blok monospace MARKET / ACTIVITY / STATUS dengan tombol aksi; lihat [contoh terbaru](runner-alert-format.md). Contoh plaintext berikut adalah referensi format lama (data ilustrasi, bukan token nyata):
+Format aktif sekarang memakai teks tebal MARKET / ACTIVITY / STATUS tanpa kotak copy dengan tombol aksi; lihat [contoh terbaru](runner-alert-format.md). Contoh plaintext berikut adalah referensi format lama (data ilustrasi, bukan token nyata):
 
 ```text
 KANDIDAT TOKEN RUNNER BARU

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { CHAIN_NAMES } from "@sti/shared";
 import type { RunnerEvent } from "./runner.js";
 
@@ -16,13 +15,16 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
   const market = block("MARKET", [
     ["Price", usd(r.latestPrice)], ["MC", usd(r.marketCapUsd, true)],
     ["Vol 5m", usd(r.volume5mUsd, true)], ["Swaps 5m", number(r.swaps5m, 0)],
-    ["Fees", hasFees ? `${number(r.totalFeesNative, 8)} ${native}` : "N/A"],
+    ["Fees", hasFees ? `${number(r.totalFeesNative, r.totalFeesNative! > 0 && r.totalFeesNative! < 0.01 ? 8 : 2)} ${native}` : "N/A"],
     ["Liquidity", usd(r.liquidityUsd, true)]
   ]);
+  const totalSwaps = present(r.buys1h) && present(r.sells1h) ? r.buys1h + r.sells1h : 0;
+  const buyPct = totalSwaps > 0 ? Math.round(r.buys1h! / totalSwaps * 100) : null;
   const activity = block("ACTIVITY", [
-    ["Buy/Sell 1h", present(r.buys1h) && present(r.sells1h) ? `${number(r.buys1h, 0)} / ${number(r.sells1h, 0)}` : "N/A"],
+    ["Flow 1h", buyPct !== null ? `Buy ${buyPct}% • Sell ${100 - buyPct}%` : "N/A"],
     ["Top 10", present(r.top10HolderPct) ? `${number(r.top10HolderPct)}%` : "N/A"],
-    ["Smart Money", number(r.smartMoneyHolderCount, 0)]
+    ["Wallets", "N/A"],
+    ["Dex Paid", "N/A"]
   ]);
   let status: string;
   let detail: string;
@@ -39,48 +41,32 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
     detail = `Lonjakan: ${present(r.spikeMultiplier) ? `${number(r.spikeMultiplier)}x` : "N/A"}\nBaseline: ${usd(r.baselineVolume5mUsd, true)}`;
   } else {
     status = complete && r.qualification === "configured" ? `🟢 ${short} QUALIFIED` : "DATA DETEKSI BELUM LENGKAP";
-    detail = complete ? r.chain === "robinhood" ? "VOL 5m • FEES" : "VOL 5m • MC • FEES • AGE"
+    detail = complete ? r.chain === "robinhood" ? "VOL • FEES" : "VOL • MC • FEES • AGE"
       : "Data wajib N/A.\nFilter belum terverifikasi.";
   }
   const notes = r.riskNotes.slice(0, 3).map((note) => escapeHtml(clip(note, 180)));
-  const ref = createHash("sha256").update(event.id).digest("hex").slice(0, 12);
   return [
     `<b>${badge} ${network} TOKEN RUNNER</b>`, "",
-    `<b>${escapeHtml(clip(r.symbol, 40))}</b>${present(r.dexAgeMinutes) ? ` · ${number(r.dexAgeMinutes)}m DEX` : ""}`,
+    `<b>💊 ${escapeHtml(clip(r.symbol, 40))}${present(r.dexAgeMinutes) ? ` • ${number(r.dexAgeMinutes)}m` : ""}</b>`,
     escapeHtml(`${CHAIN_NAMES[r.chain]} | GMGN`), "",
     ...(delayed ? ["<b>⚠️ ALERT TERTUNDA</b>", "Data saat event, bukan harga terbaru.", ""] : []),
-    `<pre>${escapeHtml(`${market}\n\n${activity}\n\n┌ STATUS\n└ ${status}\n${wrapLines(detail, 28).map((line) => `  ${line}`).join("\n")}`)}</pre>`, "",
+    market, "", activity, "", "┌ <b>STATUS</b>",
+    `└ <b>${escapeHtml(status)}</b>`, ...detail.split("\n").map((line) => `   ${escapeHtml(line)}`),
     ...(legacy ? ["Deteksi berasal dari rule lama; bukan kelulusan filter saat ini."]
-      : event.kind === "candidate" ? ["Hasil filter alert admin saat deteksi, bukan status terkini."]
+      : event.kind === "candidate" ? []
       : event.kind === "spike" ? []
       : ["Kelipatan harga teramati saat query; bukan target atau ATH."]),
     ...(notes.length ? ["", "<b>Catatan Risiko</b>", ...notes] : []), "",
-    "<b>CA</b>", `<code>${escapeHtml(r.mint)}</code>`, "",
-    `<i>Data event: ${escapeHtml(wib(r.lastSeenAt))}</i>`, `<i>Ref: ${ref}</i>`,
-    "<i>N/A = belum tersedia. Smart Money adalah label provider.</i>",
-    "<i>Filter momentum bukan audit risiko. Bukan rekomendasi beli/jual.</i>"
+    "<b>CA</b>", escapeHtml(r.mint)
   ].join("\n");
 }
 
 function block(title: string, rows: Array<[string, string]>): string {
   const width = Math.max(...rows.map(([label]) => label.length));
-  return [`┌ ${title}`, ...rows.map(([label, value], index) => {
+  return [`┌ <b>${title}</b>`, ...rows.map(([label, value], index) => {
     const prefix = `${index === rows.length - 1 ? "└" : "├"} ${label.padEnd(width)} :`;
-    return prefix.length + value.length + 1 <= 30 ? `${prefix} ${value}`
-      : `${prefix}\n${wrapLines(value, 28).map((line) => `  ${line}`).join("\n")}`;
+    return `${prefix} <b>${escapeHtml(value)}</b>`;
   })].join("\n");
-}
-function wrapLines(text: string, width: number): string[] {
-  return text.split("\n").flatMap((paragraph) => {
-    const lines: string[] = [];
-    let line = "";
-    for (const word of paragraph.split(" ")) {
-      if (line && line.length + word.length + 1 > width) { lines.push(line); line = ""; }
-      line += `${line ? " " : ""}${word}`;
-    }
-    if (line) lines.push(line);
-    return lines;
-  });
 }
 function present(value: number | null | undefined): value is number { return value != null && Number.isFinite(value); }
 function number(value: number | null | undefined, digits = 2): string {
@@ -100,6 +86,3 @@ function usd(value: number | null | undefined, compact = false): string {
 }
 function escapeHtml(value: string): string { return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 function clip(value: string, length: number): string { return Array.from(value.replace(/[\r\n\t]+/g, " ")).slice(0, length).join(""); }
-function wib(iso: string): string {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "medium" }).format(new Date(iso)) + " WIB";
-}

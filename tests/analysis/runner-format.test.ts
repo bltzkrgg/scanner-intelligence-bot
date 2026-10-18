@@ -17,27 +17,29 @@ async function fixture() {
 }
 
 describe("structured Telegram runner alerts", () => {
-  it("renders aligned market/activity/status sections with snapshot metrics", async () => {
+  it("renders bold tree sections without Telegram code boxes or metadata footer", async () => {
     const { event } = await fixture();
     const text = formatRunnerNotification(event, t);
     expect(text).toContain("🟣 SOLANA TOKEN RUNNER");
-    expect(text).toContain("<pre>┌ MARKET");
-    expect(text).toContain("┌ ACTIVITY");
+    expect(text).toContain("┌ <b>MARKET</b>");
+    expect(text).toContain("┌ <b>ACTIVITY</b>");
     expect(text).toContain("SOLANA QUALIFIED");
-    expect(text).toContain("VOL 5m • MC • FEES • AGE");
-    expect(text).toContain("150 / 70");
+    expect(text).toContain("VOL • MC • FEES • AGE");
+    expect(text).toContain("Flow 1h");
+    expect(text).toContain("<b>Buy 68% • Sell 32%</b>");
     expect(text).toContain("20%");
     expect(text).toContain("12 SOL");
     expect(text).toContain("$1M");
-    expect(text).toContain("17:27:26 WIB");
-    expect(text).toContain(`<code>${event.record.mint}</code>`);
-    expect(text).toContain("filter alert admin saat deteksi");
+    expect(text).toContain(`<b>CA</b>\n${event.record.mint}`);
+    for (const removed of ["<pre>", "<code>", "Data event:", "Ref:", "N/A =", "Bukan rekomendasi beli/jual", "filter alert admin saat deteksi"]) {
+      expect(text).not.toContain(removed);
+    }
     for (const section of text.split("\n\n")) {
       const rows = section.split("\n").filter((line) => /^[├└] \w/.test(line) && line.includes(" : "));
       if (rows.length) expect(new Set(rows.map((line) => line.indexOf(" : "))).size).toBe(1);
     }
-    expect(text).not.toContain("Dex Paid");
-    expect(text).not.toContain("Wallets");
+    expect(text).toMatch(/Dex Paid\s+: <b>N\/A<\/b>/);
+    expect(text).toMatch(/Wallets\s+: <b>N\/A<\/b>/);
   });
 
   it("shows the old RH example as delayed history, not BSC-qualified or dollar-prefixed missing values", async () => {
@@ -50,7 +52,7 @@ describe("structured Telegram runner alerts", () => {
     expect(text).toContain("ROBINHOOD TOKEN RUNNER");
     expect(text).toContain("ALERT TERTUNDA");
     expect(text).toContain("HISTORI DETEKSI LAMA");
-    expect(text).toContain("Filter RH terbaru\n  belum terverifikasi");
+    expect(text).toContain("Filter RH terbaru\n   belum terverifikasi");
     expect(text).toContain("$0.01155884");
     expect(text).toContain("$11.56M");
     expect(text).toContain("$1.25M");
@@ -65,7 +67,7 @@ describe("structured Telegram runner alerts", () => {
       feesNativeSymbol: "ETH", totalFeesNative: 0.1, dexAgeMinutes: null } }, t);
     expect(text).toContain("RH QUALIFIED");
     expect(text).toContain("0.1 ETH");
-    expect(text).toContain("VOL 5m • FEES");
+    expect(text).toContain("VOL • FEES");
     expect(text).not.toContain("• AGE");
   });
 
@@ -88,7 +90,8 @@ describe("structured Telegram runner alerts", () => {
       totalFeesNative: 0, buys1h: 0, sells1h: 0, smartMoneyHolderCount: 0, top10HolderPct: 0 } }, t);
     expect(text).toContain("&lt;b&gt;&amp;fake&lt;/b&gt;");
     expect(text).not.toContain("<script>");
-    expect(text).toContain("0 / 0");
+    expect(text).toMatch(/Flow 1h\s+: <b>N\/A<\/b>/);
+    expect(text).toContain("<b>0%</b>");
     expect(text).toContain("0 SOL");
     expect(text.length).toBeLessThan(4096);
   });
@@ -98,7 +101,7 @@ describe("structured Telegram runner alerts", () => {
     const spike = { ...event, kind: "spike" as const, record: { ...event.record,
       qualification: "spike" as const, baselineVolume5mUsd: 40000, spikeMultiplier: 5 } };
     expect(formatRunnerNotification(spike, t)).toContain("SOLANA VOLUME SPIKE");
-    expect(formatRunnerNotification(spike, t)).toContain("Lonjakan: 5x\n  Baseline: $40K");
+    expect(formatRunnerNotification(spike, t)).toContain("Lonjakan: 5x\n   Baseline: $40K");
     expect(formatRunnerNotification(spike, t)).not.toContain("Lonjakan saat event; baseline rata-rata 3 jendela 5m sebelumnya.");
     const missing = formatRunnerNotification({ ...spike, record: { ...spike.record, spikeMultiplier: null } }, t);
     expect(missing).toContain("Lonjakan: N/A\n");
@@ -109,6 +112,26 @@ describe("structured Telegram runner alerts", () => {
       expect(text).toContain("5x dari deteksi");
       expect(text).not.toContain("QUALIFIED");
     }
+  });
+
+  it("does not invent flow from missing counts or zero activity", async () => {
+    const { event } = await fixture();
+    for (const counts of [{ buys1h: null, sells1h: 20 }, { buys1h: 20, sells1h: null }, { buys1h: 0, sells1h: 0 }]) {
+      const text = formatRunnerNotification({ ...event, record: { ...event.record, ...counts } }, t);
+      expect(text).toMatch(/Flow 1h\s+: <b>N\/A<\/b>/);
+      expect(text).not.toContain("Buy ");
+    }
+    const text = formatRunnerNotification({ ...event, record: { ...event.record, buys1h: 0, sells1h: 5 } }, t);
+    expect(text).toContain("Buy 0% • Sell 100%");
+  });
+
+  it("preserves small native fees and specific risk notes without restoring the generic footer", async () => {
+    const { event } = await fixture();
+    const text = formatRunnerNotification({ ...event, record: { ...event.record, chain: "bsc", feesNativeSymbol: "BNB",
+      totalFeesNative: 0.00012345, riskNotes: ["Provider: honeypot belum dapat diperiksa."] } }, t);
+    expect(text).toContain("0.00012345 BNB");
+    expect(text).toContain("Provider: honeypot belum dapat diperiksa.");
+    expect(text).not.toContain("Data event:");
   });
 
   it("fills missing old activity fields with null without rewriting the queued snapshot", async () => {
@@ -141,16 +164,16 @@ describe("structured Telegram runner alerts", () => {
     }
   });
 
-  it("keeps typical mobile data blocks within 30 monospace columns without losing values", async () => {
+  it("uses wrapping text on mobile rather than a horizontally scrolling code block", async () => {
     const { event } = await fixture();
     const text = formatRunnerNotification({ ...event, kind: "spike", record: { ...event.record,
       qualification: "spike", latestPrice: 0.00018641, totalFeesNative: 23.88757287,
       buys1h: 12345678, sells1h: 87654321, baselineVolume5mUsd: 35860, spikeMultiplier: 3.21 } }, t);
-    const pre = text.match(/<pre>([\s\S]*?)<\/pre>/)![1];
-    expect(pre.split("\n").every((line) => Array.from(line).length <= 30)).toBe(true);
-    expect(pre).toContain("23.88757287 SOL");
-    expect(pre).toContain("12,345,678 / 87,654,321");
-    expect(pre).toContain("Lonjakan: 3.21x");
-    expect(pre).toContain("Baseline: $35.86K");
+    expect(text).not.toMatch(/<pre>|<code>/);
+    expect(text).toContain("<b>23.89 SOL</b>");
+    expect(text).toContain("Buy 12% • Sell 88%");
+    expect(text).toContain("Lonjakan: 3.21x");
+    expect(text).toContain("Baseline: $35.86K");
+    expect(event.record.totalFeesNative).toBe(12);
   });
 });
