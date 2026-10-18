@@ -1,8 +1,27 @@
-import type { Bot } from "grammy";
-import { CHAIN_NAMES, type AppConfig, type Chain } from "@sti/shared";
+import { GrammyError, HttpError, type Bot } from "grammy";
+import { CHAIN_NAMES, logger, type AppConfig, type Chain } from "@sti/shared";
 import { alertsEnabled, alertInterval, formatRunnerNotification, type RunnerMonitor } from "@sti/analysis";
 
-export function statusMessage(config: AppConfig, runner?: RunnerMonitor): string {
+type LifecycleDelivery = { event: string; result: "terkirim" | "gagal" | "nonaktif"; error?: string };
+const deliveries = new WeakMap<Bot, LifecycleDelivery>();
+
+export function notificationErrorMessage(error: unknown): string {
+  if (error instanceof GrammyError) {
+    if (error.error_code === 401) return "Telegram 401: token tidak valid pada proses ini. Periksa token dan environment PM2.";
+    if (error.parameters.migrate_to_chat_id) return "Telegram 400: grup berubah menjadi supergroup. Ambil chat ID baru lewat /chatid.";
+    if (error.error_code === 400 && /chat not found/i.test(error.description)) return "Telegram 400: chat tujuan tidak ditemukan. Kirim /start lalu ambil /chatid dari bot dan chat tujuan yang benar.";
+    if (error.error_code === 403) return "Telegram 403: bot diblokir, bukan anggota, atau tidak diizinkan mengirim. Buka blokir/kirim /start dan periksa izin grup/channel.";
+    if (error.error_code === 429) return "Telegram 429: rate limit. Tunggu lalu coba /notification_test lagi.";
+    return `Telegram ${error.error_code}: permintaan ditolak. Periksa chat tujuan dan izin kirim bot.`;
+  }
+  const cause = error instanceof HttpError ? error.error : error;
+  if (cause instanceof Error && /abort|timeout|timed out/i.test(`${cause.name} ${cause.message}`)) {
+    return "Pengiriman timeout/dibatalkan. Periksa akses HTTPS dari server ke api.telegram.org.";
+  }
+  return "Pengiriman gagal. Periksa koneksi HTTPS ke Telegram dan konfigurasi proses; token tidak ditampilkan.";
+}
+
+export function statusMessage(config: AppConfig, runner?: RunnerMonitor, delivery?: LifecycleDelivery): string {
   return [
     "TOKEN INTELLIGENCE",
     "Status: proses bot aktif",
@@ -14,6 +33,8 @@ export function statusMessage(config: AppConfig, runner?: RunnerMonitor): string
     "Kirim CA langsung. Alamat 0x akan meminta pilihan BSC atau RH.",
     "Menu: /start, /scan, /help, /status, /chatid, /runner, /runners.",
     `Runner: ${runner?.active ? "AKTIF" : "NONAKTIF"}. Interval Solana/BSC/RH: /getconfig.`,
+    `Notifikasi ONLINE/OFFLINE: ${config.telegramStartupChatId ? "tujuan dikonfigurasi" : "NONAKTIF; isi TELEGRAM_STARTUP_CHAT_ID"}. Hasil terakhir: ${delivery ? `${delivery.event} ${delivery.result}` : "belum diuji"}.`,
+    delivery?.error ?? "",
     `Notifikasi runner: ${config.telegramRunnerChatId ? "tujuan chat dikonfigurasi" : "NONAKTIF; isi TELEGRAM_RUNNER_CHAT_ID"}. Antrean: ${runner?.snapshot().pendingAlerts.length ?? 0}.`,
     runner?.snapshot().lastNotificationError ?? "",
     "Smart wallet bank sendiri dan Discord belum aktif."
@@ -22,10 +43,21 @@ export function statusMessage(config: AppConfig, runner?: RunnerMonitor): string
 
 export function registerUtilityCommands(bot: Bot, config: AppConfig, runner?: RunnerMonitor): void {
   bot.command("help", async (ctx) => {
-    await ctx.reply("Kirim CA langsung atau /scan <CA>. Untuk EVM pilih tombol BSC/RH, atau /scan bsc <CA> dan /scan rh <CA>.\n/runner [sol|bsc|rh] <CA>: evaluasi runner dan histori.\n/runners: daftar dan status pemantauan.\n/runner_on, /runner_off, /runner_remove <chain> <CA>, /runner_test: khusus admin.\n/getconfig, /setconfig <key> <value>: admin, filter alert Solana/BSC/RH tanpa restart.\n/status: mode data dan notifikasi.\n/chatid: ID chat dan user untuk konfigurasi.");
+    await ctx.reply("Kirim CA langsung atau /scan <CA>. Untuk EVM pilih tombol BSC/RH, atau /scan bsc <CA> dan /scan rh <CA>.\n/runner [sol|bsc|rh] <CA>: evaluasi runner dan histori.\n/runners: daftar dan status pemantauan.\n/runner_on, /runner_off, /runner_remove <chain> <CA>, /runner_test: khusus admin.\n/notification_test: admin, uji tujuan ONLINE/OFFLINE.\n/getconfig, /setconfig <key> <value>: admin, filter alert Solana/BSC/RH tanpa restart.\n/status: mode data dan notifikasi.\n/chatid: ID chat dan user untuk konfigurasi.");
   });
-  bot.command("status", async (ctx) => { await ctx.reply(statusMessage(config, runner)); });
+  bot.command("status", async (ctx) => { await ctx.reply(statusMessage(config, runner, deliveries.get(bot))); });
   bot.command("chatid", async (ctx) => { await ctx.reply(`Chat ID: ${ctx.chat.id}\nUser ID: ${ctx.from?.id ?? "tidak tersedia"}`); });
+  bot.command("notification_test", async (ctx) => {
+    if (!ctx.from || !config.telegramAdminIds.includes(String(ctx.from.id))) {
+      await ctx.reply("Perintah ini khusus user ID yang terdaftar pada TELEGRAM_ADMIN_IDS.");
+      return;
+    }
+    try {
+      const sent = await sendLifecycleTest(bot, config);
+      await ctx.reply(sent ? "Tes terkirim ke TELEGRAM_STARTUP_CHAT_ID. Tujuan ini juga dipakai ONLINE/OFFLINE."
+        : "TELEGRAM_STARTUP_CHAT_ID kosong pada proses bot ini. Isi chat ID dari /chatid, lalu restart menggunakan environment terbaru.");
+    } catch (error) { await ctx.reply(notificationErrorMessage(error)); }
+  });
 }
 
 export async function configureTelegramMenu(bot: Bot): Promise<void> {
@@ -41,6 +73,7 @@ export async function configureTelegramMenu(bot: Bot): Promise<void> {
     { command: "runner_off", description: "Admin: jeda pemantauan runner" },
     { command: "runner_remove", description: "Admin: hapus histori satu CA" },
     { command: "runner_test", description: "Admin: uji kirim notifikasi runner" },
+    { command: "notification_test", description: "Admin: uji tujuan ONLINE/OFFLINE" },
     { command: "getconfig", description: "Admin: lihat pengaturan alert" },
     { command: "setconfig", description: "Admin: ubah pengaturan alert" }
   ]);
@@ -87,9 +120,34 @@ export function formatShutdownNotification(reason: string, startedAt: number, sa
   ].join("\n");
 }
 
-export async function sendShutdownNotification(bot: Bot, config: AppConfig, reason: string, startedAt: number, saved: boolean): Promise<void> {
-  if (!config.telegramStartupChatId) return;
-  await sendStatusMessage(bot, config.telegramStartupChatId, formatShutdownNotification(reason, startedAt, saved));
+export async function sendShutdownNotification(bot: Bot, config: AppConfig, reason: string, startedAt: number, saved: boolean): Promise<boolean> {
+  return deliverLifecycle(bot, config, "OFFLINE", formatShutdownNotification(reason, startedAt, saved));
+}
+
+async function deliverLifecycle(bot: Bot, config: AppConfig, event: string, text: string): Promise<boolean> {
+  if (!config.telegramStartupChatId) {
+    const error = "TELEGRAM_STARTUP_CHAT_ID kosong; ONLINE/OFFLINE tidak dikirim. Token bot saja tidak menentukan tujuan pesan.";
+    deliveries.set(bot, { event, result: "nonaktif", error });
+    logger.warn({ event, reason: "STARTUP_CHAT_ID_MISSING" }, error);
+    return false;
+  }
+  try {
+    await sendStatusMessage(bot, config.telegramStartupChatId, text);
+    deliveries.set(bot, { event, result: "terkirim" });
+    logger.info({ event }, "Lifecycle notification sent");
+    return true;
+  } catch (error) {
+    const reason = notificationErrorMessage(error);
+    deliveries.set(bot, { event, result: "gagal", error: reason });
+    logger.error({ event, reason }, "Lifecycle notification failed");
+    throw error;
+  }
+}
+
+export async function sendLifecycleTest(bot: Bot, config: AppConfig): Promise<boolean> {
+  return deliverLifecycle(bot, config, "TEST", ["TES NOTIFIKASI LIFECYCLE", "",
+    "Pengiriman ke tujuan ONLINE/OFFLINE berhasil. Ini pesan uji, bukan perubahan status proses.",
+    `Waktu: ${formatLifecycleTime(Date.now())}`].join("\n"));
 }
 
 export async function sendStatusMessage(bot: Bot, chatId: string, text: string): Promise<void> {
@@ -102,10 +160,6 @@ export async function sendStatusMessage(bot: Bot, chatId: string, text: string):
   } finally { clearTimeout(timer); }
 }
 
-export async function sendStartupNotification(bot: Bot, config: AppConfig, runner?: RunnerMonitor): Promise<void> {
-  if (!config.telegramStartupChatId) return;
-  await sendStatusMessage(bot,
-    config.telegramStartupChatId,
-    formatStartupNotification(config, runner)
-  );
+export async function sendStartupNotification(bot: Bot, config: AppConfig, runner?: RunnerMonitor): Promise<boolean> {
+  return deliverLifecycle(bot, config, "ONLINE", formatStartupNotification(config, runner));
 }

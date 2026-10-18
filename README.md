@@ -6,6 +6,8 @@ Laporan Telegram kini ringkas, dengan CA monospace, angka K/M/B, waktu WIB, dan 
 
 Notifikasi ONLINE/OFFLINE memakai chat startup yang sama. Monitor heartbeat independen tersedia untuk gangguan proses/polling; jalankan di mesin lain untuk mendeteksi server bot mati. Ikuti [panduan lifecycle dan monitor PM2](docs/bot-lifecycle.md), termasuk secret health dan `.env.monitor`.
 
+Jika notifikasi tidak muncul: jalankan `pnpm telegram:check`, atau admin kirim `/notification_test` lalu `/status`. Tersedia `ecosystem.config.cjs` agar PM2 memakai cwd, entry point dan `.env` yang benar; [langkah diagnosis](docs/bot-lifecycle.md#diagnosis-notifikasi-tidak-muncul) tidak memerlukan membagikan token.
+
 **Status:** scan live dan pemantauan runner pada ketiga jaringan, dengan notifikasi Telegram untuk kandidat baru dan milestone 2x/5x teramati. Dukungan data aktual mengikuti akses GMGN. Mode default `mock` hanya pesan demo, tanpa skor atau win rate. Field tidak tersedia bernilai `null`. Skor historis belum diterbitkan karena benchmark riil belum terpasang.
 
 Untuk mengaktifkan data nyata dan runner, ikuti [panduan live dan runner](docs/live-and-runner.md). Query token dan discovery sudah diuji dengan CLI resmi dan public demo key; untuk penggunaan bot, gunakan API key Anda sendiri.

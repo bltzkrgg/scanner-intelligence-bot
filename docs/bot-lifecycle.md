@@ -31,6 +31,18 @@ Pengiriman ONLINE/OFFLINE memiliki batas 5 detik per pesan. Shutdown keseluruhan
 
 ## 2. PM2
 
+Konfigurasi yang direkomendasikan sekarang adalah `ecosystem.config.cjs`: cwd/script/env memakai path absolut, `.env` dibaca eksplisit agar chat tujuan terbaru menggantikan environment PM2 lama, dan kill timeout disesuaikan dengan batas shutdown. Gunakan Node 24. Jangan membagikan output `pm2 env` karena konfigurasi PM2 dapat memuat token.
+
+Setelah dependency terpasang, jalankan `pnpm telegram:check` terlebih dahulu. Jika tes berhasil dan proses lama memakai wrapper npm/pnpm atau definisi yang tidak diketahui, hentikan/hapus **hanya definisi proses PM2** `scanner-telegram` kemudian buat kembali:
+
+```bash
+pm2 delete scanner-telegram
+pm2 start ecosystem.config.cjs --only scanner-telegram
+pm2 save
+```
+
+Ini menghentikan bot sebentar, bukan menghapus `.env`, histori, atau file source. Jangan menjalankan instance kedua. Untuk perubahan berikutnya, gunakan `pm2 restart ecosystem.config.cjs --only scanner-telegram --update-env` agar file config dan `.env` dibaca lagi. File ini mengelola bot utama saja, bukan monitor. Konfigurasi cwd, interpreter, env, dan kill timeout mengikuti [skema ecosystem PM2](https://pm2.keymetrics.io/docs/usage/application-declaration/).
+
 Dari root repository, sesudah tools, dependency dan `.env` siap:
 
 ```bash
@@ -143,3 +155,30 @@ OFFLINE memuat alasan SIGINT/SIGTERM, uptime, waktu WIB dan hasil checkpoint. TI
 ## Batas Verifikasi
 
 Tes lokal menggunakan Telegram API mock dan skenario shutdown/monitor deterministik. Health endpoint juga diuji melalui HTTP loopback untuk autentikasi dan heartbeat kedaluwarsa. Telegram asli, PM2 pada server Anda, koneksi lintas mesin, firewall/TLS dan reboot server tetap memerlukan uji deployment. Jika bot dan monitor sama-sama tidak dapat menghubungi Telegram, tidak ada jaminan notifikasi sampai koneksi pengirim pulih.
+
+## Diagnosis Notifikasi Tidak Muncul
+
+Token bot menentukan identitas pengirim, bukan chat tujuan. ONLINE/OFFLINE memakai `TELEGRAM_STARTUP_CHAT_ID`; mengisi `TELEGRAM_RUNNER_CHAT_ID` atau `TELEGRAM_MONITOR_CHAT_ID` saja tidak mengaktifkannya. Di Telegram kirim `/start` lalu `/chatid` pada bot dan chat tujuan yang benar, isi ID numeriknya di `.env`, lalu restart proses dengan environment terbaru.
+
+Uji dari root repository tanpa membuat proses polling kedua:
+
+```bash
+pnpm telegram:check
+```
+
+Perintah ini memvalidasi config, memanggil getMe untuk memverifikasi identitas bot, getChat untuk tujuan, lalu mengirim pesan **TES**, bukan ONLINE palsu. Script tidak memanggil getUpdates, sehingga boleh berjalan saat bot aktif. Jika getMe benar tetapi tujuan/pengiriman gagal, token valid tidak berarti chat ID/izin sudah benar. Jangan kirim token atau isi `.env` untuk meminta bantuan.
+
+Admin juga dapat mengetik `/notification_test` pada bot yang sedang berjalan. Perintah ini memakai tujuan dan environment **proses bot tersebut**, bukan config proses CLI. `/status` menampilkan apakah tujuan ONLINE/OFFLINE dikonfigurasi dan hasil percobaan lifecycle terakhir pada proses itu. `/runner_test` hanya menguji tujuan alert runner; bukan pengganti `/notification_test`.
+
+| Hasil | Tindakan |
+| --- | --- |
+| `STARTUP_CHAT_ID_MISSING` / tujuan nonaktif | Isi TELEGRAM_STARTUP_CHAT_ID dari /chatid lalu restart dengan config terbaru |
+| Telegram 400 chat tidak ditemukan | Gunakan chat ID dari bot/chat yang tepat; private chat harus sudah memulai bot |
+| Telegram 403 | Buka blokir bot, pastikan keanggotaan grup serta izin kirim/channel admin |
+| Telegram 401 | Token pada proses tersebut salah/dicabut; periksa identitas bot dan environment PM2 |
+| Telegram 429 | Tunggu, jangan mengulang tes terus-menerus |
+| Timeout/koneksi gagal | Periksa akses HTTPS/DNS server menuju api.telegram.org |
+| CLI sukses, /notification_test gagal | Proses PM2 membaca env/script/cwd atau versi kode yang berbeda; gunakan ecosystem config |
+| ONLINE terkirim tetapi OFFLINE tidak | Periksa signal, wrapper proses, deadline checkpoint, dan kill timeout PM2; SIGKILL tidak bisa ditangkap |
+
+Log baru mencatat event ONLINE/OFFLINE/TEST beserta keberhasilan, nonaktif, atau kategori kegagalan yang disanitasi. Ambil log dengan `pm2 logs scanner-telegram --lines 50 --nostream`, sensor token/API key jika pernah tercatat oleh versi lama. Jangan membagikan `pm2 env`, `.env`, atau kredensial. Diagnosis penyebab pada server tetap membutuhkan hasil tes/log tersebut; tes lokal tidak membuktikan chat Telegram deployment dapat menerima pesan.
