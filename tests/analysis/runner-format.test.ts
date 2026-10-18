@@ -32,8 +32,10 @@ describe("structured Telegram runner alerts", () => {
     expect(text).toContain("17:27:26 WIB");
     expect(text).toContain(`<code>${event.record.mint}</code>`);
     expect(text).toContain("filter alert admin saat deteksi");
-    const rows = text.split("\n").filter((line) => /^[├└] \w/.test(line) && line.includes(" : "));
-    expect(new Set(rows.map((line) => line.indexOf(" : "))).size).toBe(1);
+    for (const section of text.split("\n\n")) {
+      const rows = section.split("\n").filter((line) => /^[├└] \w/.test(line) && line.includes(" : "));
+      if (rows.length) expect(new Set(rows.map((line) => line.indexOf(" : "))).size).toBe(1);
+    }
     expect(text).not.toContain("Dex Paid");
     expect(text).not.toContain("Wallets");
   });
@@ -48,7 +50,7 @@ describe("structured Telegram runner alerts", () => {
     expect(text).toContain("ROBINHOOD TOKEN RUNNER");
     expect(text).toContain("ALERT TERTUNDA");
     expect(text).toContain("HISTORI DETEKSI LAMA");
-    expect(text).toContain("Filter RH terbaru belum terverifikasi");
+    expect(text).toContain("Filter RH terbaru\n  belum terverifikasi");
     expect(text).toContain("$0.01155884");
     expect(text).toContain("$11.56M");
     expect(text).toContain("$1.25M");
@@ -96,9 +98,10 @@ describe("structured Telegram runner alerts", () => {
     const spike = { ...event, kind: "spike" as const, record: { ...event.record,
       qualification: "spike" as const, baselineVolume5mUsd: 40000, spikeMultiplier: 5 } };
     expect(formatRunnerNotification(spike, t)).toContain("SOLANA VOLUME SPIKE");
-    expect(formatRunnerNotification(spike, t)).toContain("Lonjakan 5x | baseline $40K");
+    expect(formatRunnerNotification(spike, t)).toContain("Lonjakan: 5x\n  Baseline: $40K");
+    expect(formatRunnerNotification(spike, t)).not.toContain("Lonjakan saat event; baseline rata-rata 3 jendela 5m sebelumnya.");
     const missing = formatRunnerNotification({ ...spike, record: { ...spike.record, spikeMultiplier: null } }, t);
-    expect(missing).toContain("Lonjakan N/A |");
+    expect(missing).toContain("Lonjakan: N/A\n");
     expect(missing).not.toContain("N/Ax");
     for (const kind of ["2x", "5x"] as const) {
       const text = formatRunnerNotification({ ...event, kind, record: { ...event.record, latestPrice: 5 } }, t);
@@ -125,15 +128,29 @@ describe("structured Telegram runner alerts", () => {
     expect(queued.record.latestPrice).toBe(original.record.latestPrice);
   });
 
-  it("provides chain-specific links, new-report refresh, runner detail and native copy within callback limits", () => {
+  it("keeps only GMGN, runner detail and native copy for every chain", () => {
     for (const chain of ["sol", "bsc", "robinhood"] as const) {
       const mint = chain === "sol" ? live().mint : evm;
       const buttons = runnerNotificationKeyboard(chain, mint).inline_keyboard.flat();
-      expect(buttons).toHaveLength(5);
+      expect(buttons.map((button) => button.text)).toEqual(["GMGN", "Detail Runner", "Salin CA"]);
       expect(buttons[0]).toEqual({ text: "GMGN", url: `https://gmgn.ai/${chain}/token/${mint}` });
-      expect(buttons[2]).toEqual({ text: "Refresh", callback_data: `report:n:${chain}:${mint}` });
-      expect(buttons[4]).toEqual({ text: "Salin CA", copy_text: { text: mint } });
+      expect(buttons[1]).toEqual({ text: "Detail Runner", callback_data: `report:r:${chain}:${mint}` });
+      expect(buttons[2]).toEqual({ text: "Salin CA", copy_text: { text: mint } });
+      expect(runnerNotificationKeyboard(chain, mint).inline_keyboard.map((row) => row.length)).toEqual([2, 1]);
       for (const button of buttons) if ("callback_data" in button) expect(Buffer.byteLength(button.callback_data)).toBeLessThanOrEqual(64);
     }
+  });
+
+  it("keeps typical mobile data blocks within 30 monospace columns without losing values", async () => {
+    const { event } = await fixture();
+    const text = formatRunnerNotification({ ...event, kind: "spike", record: { ...event.record,
+      qualification: "spike", latestPrice: 0.00018641, totalFeesNative: 23.88757287,
+      buys1h: 12345678, sells1h: 87654321, baselineVolume5mUsd: 35860, spikeMultiplier: 3.21 } }, t);
+    const pre = text.match(/<pre>([\s\S]*?)<\/pre>/)![1];
+    expect(pre.split("\n").every((line) => Array.from(line).length <= 30)).toBe(true);
+    expect(pre).toContain("23.88757287 SOL");
+    expect(pre).toContain("12,345,678 / 87,654,321");
+    expect(pre).toContain("Lonjakan: 3.21x");
+    expect(pre).toContain("Baseline: $35.86K");
   });
 });

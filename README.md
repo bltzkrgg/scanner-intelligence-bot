@@ -16,7 +16,7 @@ Untuk BSC/RH dan notifikasi, ikuti [aktivasi multichain dan alert](docs/multicha
 
 Admin kini bisa mengubah filter Solana/BSC/RH dengan `/setconfig` tanpa restart, melihat `/getconfig`, dan menerima alert volume spike Solana/BSC. Fees mengikuti native chain: SOL/BNB/ETH. Daftar key, default, aktivasi PM2 dan contoh pesan ada di [pengaturan runner Telegram](docs/runner-config.md). Kebutuhan tambahan data risiko GMGN dicatat di [backlog pengayaan data](docs/gmgn-enrichment-backlog.md), belum diklaim selesai.
 
-Notifikasi runner kini memakai blok MARKET / ACTIVITY / STATUS, label jaringan yang tepat, N/A untuk data kosong, waktu WIB, dan tombol GMGN/Explorer/Refresh/Detail/Salin CA. Lihat [format alert runner](docs/runner-alert-format.md). Refresh membuka laporan baru agar snapshot alert historis tetap utuh.
+Notifikasi runner kini memakai blok MARKET / ACTIVITY / STATUS yang ringkas untuk mobile, label jaringan yang tepat, N/A untuk data kosong, waktu WIB, dan tombol GMGN / Detail Runner / Salin CA. Tombol explorer dan Refresh dihapus dari notifikasi runner; laporan scan biasa tetap memiliki tombolnya. Lihat [format alert runner](docs/runner-alert-format.md).
 
 ## Mulai
 

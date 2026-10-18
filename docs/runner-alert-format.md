@@ -32,7 +32,8 @@ Hasil filter alert admin saat deteksi, bukan status terkini.
 CA
 <CA lengkap>
 
-Data event: <waktu WIB> | Ref: <referensi pendek>
+Data event: <waktu WIB>
+Ref: <referensi pendek>
 N/A = belum tersedia. Smart Money adalah label provider.
 Filter momentum bukan audit risiko. Bukan rekomendasi beli/jual.
 ```
@@ -42,7 +43,7 @@ Filter momentum bukan audit risiko. Bukan rekomendasi beli/jual.
 - Solana: judul ungu SOLANA TOKEN RUNNER, fees SOL, kandidat memakai VOL 5m / MC / FEES / AGE.
 - BSC: judul kuning BSC TOKEN RUNNER, fees BNB, kandidat memakai VOL 5m / MC / FEES / AGE.
 - Robinhood: judul hijau ROBINHOOD TOKEN RUNNER, fees ETH, kandidat memakai VOL 5m / FEES. Tidak mengklaim lolos syarat umur/market cap yang tidak menjadi filter RH.
-- Spike memakai status SOLANA/BSC VOLUME SPIKE, rasio lonjakan dan baseline 3 jendela 5m sebelumnya. Ini bukan label kandidat baru atau probabilitas profit.
+- Spike memakai status SOLANA/BSC VOLUME SPIKE, rasio lonjakan dan baseline 3 jendela 5m sebelumnya. Rasio dan nilai baseline ditampilkan pada dua baris terpisah; kalimat penjelasan "Lonjakan saat event; baseline rata-rata 3 jendela 5m sebelumnya." dihapus dari pesan. Perhitungan baseline tidak berubah. Ini bukan label kandidat baru atau probabilitas profit.
 - Milestone memakai 2X/5X TERAMATI, kelipatan aktual saat query dan harga awal deteksi. Bukan target profit atau ATH.
 
 QUALIFIED berarti metadata event menyatakan lolos filter saat deteksi dan metrik wajib pada event masih lengkap, bukan hasil evaluasi ulang dengan config terbaru. Event dari rule lama ditandai HISTORI DETEKSI LAMA, bukan dilabeli rule BSC untuk semua jaringan. Misalnya histori RH lama: `Filter RH terbaru belum terverifikasi`. Jika metadata kandidat baru tidak lengkap, statusnya DATA DETEKSI BELUM LENGKAP.
@@ -60,12 +61,17 @@ Field aktivitas baru disimpan untuk observasi berikutnya. Snapshot antrean lama 
 ## Tombol
 
 ```text
-[ GMGN ]       [ Solscan/BscScan/Explorer ]
-[ Refresh ]    [ Detail Runner          ]
+[ GMGN ]       [ Detail Runner ]
 [ Salin CA ]
 ```
 
-GMGN dan explorer mengikuti jaringan token, bukan bentuk CA saja. Refresh melewati cache lokal dan mengirim laporan scan terbaru sebagai pesan **terpisah**. Alert historis tidak diedit. Detail Runner membuka penilaian terkini dan histori chain+CA; Salin CA memakai tombol copy native Telegram dengan CA monospace sebagai cadangan klien lama.
+GMGN mengikuti jaringan token, bukan bentuk CA saja. Tombol Solscan/BscScan/Explorer dan Refresh dihapus dari notifikasi runner pada semua jaringan. Detail Runner membuka penilaian terkini dan histori chain+CA; Salin CA memakai tombol copy native Telegram dengan CA monospace sebagai cadangan klien lama. Laporan scan biasa tetap mempunyai tombol explorer dan Refresh. Callback pada alert lama tetap didukung agar pesan yang sudah terkirim tidak rusak.
+
+## Mobile dan Desktop
+
+Kedua klien menerima struktur pesan dan keyboard yang sama. Padding label dipadatkan per bagian; baris data yang melebihi 30 karakter dipindah ke baris nilai tersendiri dan dibungkus pada spasi. Baris status yang panjang juga dipisah, termasuk lonjakan/baseline dan harga awal milestone. Angka, unit, CA, dan catatan risiko tidak dipotong untuk mengejar lebar layar. Tanggal dan referensi berada pada baris terpisah. Tidak ada perubahan threshold atau nilai mentah dalam state.
+
+Layout ini mengurangi kebutuhan scroll horizontal untuk angka umum pada mobile; font, skala aksesibilitas dan rendering code block tetap dikendalikan aplikasi Telegram. Tidak ada deteksi perangkat atau CSS khusus pada pesan bot. Nilai numerik tunggal yang ekstrem/panjang masih dapat memerlukan scroll native. Tes mencakup batas kolom pada contoh mobile, bukan screenshot dari perangkat Telegram asli.
 
 Renderer memakai HTML Telegram dengan bold, pre dan code, escape teks provider, dan preview tautan dinonaktifkan. Referensi pendek adalah 12 karakter awal SHA-256 Event ID untuk membantu mengenali duplikat; Event ID lengkap tetap tersimpan pada outbox, tidak diganti sebagai kunci deduplikasi. Kegagalan kirim mempertahankan antrean seperti sebelumnya.
 

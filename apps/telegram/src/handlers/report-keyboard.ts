@@ -20,8 +20,6 @@ export function reportKeyboard(chain: Chain, mint: string): InlineKeyboard {
 export function runnerNotificationKeyboard(chain: Chain, mint: string): InlineKeyboard {
   return new InlineKeyboard()
     .url("GMGN", `https://gmgn.ai/${chain}/token/${mint}`)
-    .url(chain === "sol" ? "Solscan" : chain === "bsc" ? "BscScan" : "Explorer", explorerUrl(chain, mint)).row()
-    .text("Refresh", `report:n:${chain}:${mint}`)
     .text("Detail Runner", `report:r:${chain}:${mint}`).row()
     .copyText("Salin CA", mint);
 }
