@@ -2,7 +2,28 @@
 
 Panduan menggunakan terminal macOS atau Ubuntu/Debian. Windows dapat mengikuti jalur Ubuntu melalui WSL2. Jalankan perintah aplikasi dari root repository.
 
-Target selesai: API menghasilkan JSON dengan sumber `fixture`, bot membalas `/start` dan `/scan`, serta pengujian lokal lulus. Mode live adalah tahap tambahan dengan akses GMGN.
+Target selesai: bot membalas `/start` dan CA Solana yang dikirim langsung, serta pengujian lokal lulus. API bersifat opsional dan dapat diuji terpisah. Mode live adalah tahap tambahan dengan akses GMGN.
+
+## Status Fitur sebelum Instalasi
+
+Panduan ini diperbarui pada 18 Oktober 2026 berdasarkan kode dalam repository.
+
+| Fitur | Status saat ini |
+| --- | --- |
+| Telegram: CA langsung, `/start`, `/scan` | Tersedia |
+| Scan Solana dengan data contoh | Tersedia, default `GMGN_PROVIDER=mock` |
+| Query GMGN CLI untuk Solana | Adapter awal; mapping live belum divalidasi |
+| Discord | Rencana; belum ada aplikasi atau script startup |
+| Bank smart wallet bersama dan pengaruh ke skor | Rencana; belum ada command penambahan wallet |
+| Deteksi kandidat runner dan pelacakan performa | Rencana; belum ada worker atau command runner |
+| BSC, Ethereum, Robinhood Chain dan pemilihan chain | Rencana; scanner saat ini hanya menerima format alamat Solana |
+| Penyimpanan laporan dan aktivitas wallet di PostgreSQL | Belum terhubung |
+
+Rincian pengembangan berikutnya ada di [rencana fitur](roadmap.md). Mengisi token Discord atau memasang database saja belum mengaktifkan fitur yang masih direncanakan.
+
+## Jalur Cepat Telegram
+
+Jika tools sudah tersedia, ikuti langkah 2-4, buat token melalui langkah 6, lalu jalankan bot pada langkah 7. Langkah 5 (API), 8 (GMGN live), dan 9 (riset) opsional. Untuk server yang tetap aktif setelah SSH ditutup, lanjutkan ke langkah 10.
 
 ## 1. Pasang Tools
 
@@ -82,7 +103,7 @@ pnpm test:python
 
 Semua perintah harus selesai dengan exit code nol. Tes lokal tidak memerlukan Telegram atau GMGN. `build` menghasilkan `dist`, tetapi panduan menjalankan source melalui `tsx`.
 
-## 5. Jalankan API
+## 5. Jalankan API (Opsional)
 
 Terminal pertama:
 
@@ -128,6 +149,18 @@ So11111111111111111111111111111111111111112
 ```
 
 Bot langsung mengirim laporan Indonesia dengan klasifikasi, skor, sumber `fixture`, metrics, dan risiko. `/scan <alamat_mint>` tetap tersedia. Kirim satu alamat mint saja dalam pesan; pesan biasa diabaikan.
+
+Contoh pengujian setelah startup:
+
+| Pesan | Hasil yang diharapkan |
+| --- | --- |
+| `/start` | Petunjuk pengiriman CA |
+| Satu CA Solana tanpa tambahan teks | Satu laporan token |
+| `/scan <CA_Solana>` | Satu laporan yang sama |
+| `halo` atau `cek <CA>` | Diabaikan |
+| Alamat EVM `0x...` langsung | Diabaikan; multichain belum tersedia |
+
+Pada mode mock semua CA valid menghasilkan data contoh yang sama, dengan alamat input masing-masing. Kemunculan laporan membuktikan alur pesan bekerja, bukan bahwa data live sudah aktif.
 
 Untuk menerima CA langsung di grup, nonaktifkan privacy mode melalui `/setprivacy` pada BotFather, pilih bot, lalu Disable. Jika diperlukan, keluarkan dan tambahkan bot kembali ke grup. Pada chat pribadi, tidak perlu mengubah privacy mode.
 
@@ -178,7 +211,7 @@ deactivate
 
 ## 10. Jalankan Terus di Server Ubuntu
 
-Selesaikan langkah 1-7 di server sebagai pengguna biasa. Contoh systemd mengasumsikan user `scanner` dan folder `/home/scanner/scanner-intelligence-bot`; sesuaikan dengan mesin Anda.
+Selesaikan instalasi dan pengujian Telegram di server sebagai pengguna biasa; langkah API opsional. Contoh systemd mengasumsikan user `scanner` dan folder `/home/scanner/scanner-intelligence-bot`; sesuaikan dengan mesin Anda.
 
 Cari executable:
 
@@ -219,7 +252,7 @@ sudo systemctl status scanner-telegram
 sudo journalctl -u scanner-telegram -n 50 --no-pager
 ```
 
-Status yang diharapkan `active (running)`. Ulangi `/start` dan `/scan` di Telegram. Hentikan proses terminal dengan token sama sebelum service diaktifkan.
+Status yang diharapkan `active (running)`. Ulangi `/start`, kirim CA langsung, lalu uji `/scan` di Telegram. Hentikan proses terminal dengan token sama sebelum service diaktifkan.
 
 API opsional. Jika dijalankan di VPS, batasi port melalui firewall karena API listen pada `0.0.0.0` dan belum memiliki autentikasi. Akses dari komputer melalui SSH tunnel dengan port API tidak dibuka ke publik:
 
@@ -231,6 +264,8 @@ Panggil `http://localhost:3000/scan` dari komputer saat API aktif di server.
 
 ## 11. Update
 
+Masuk ke direktori repository terlebih dahulu. Untuk bot yang dikelola systemd:
+
 ```bash
 git pull --ff-only origin main
 pnpm install --frozen-lockfile
@@ -241,6 +276,14 @@ sudo systemctl restart scanner-telegram
 ```
 
 Tambahkan variabel baru dari `.env.example` ke `.env` secara manual. Uji scan lagi setelah restart.
+
+Jika menjalankan bot dari terminal, hentikan proses lama dengan `Ctrl+C`, jalankan perintah Git/install/build/test di atas tanpa `systemctl`, lalu mulai kembali:
+
+```bash
+pnpm telegram:dev
+```
+
+Jangan menjalankan proses terminal dan service systemd dengan token bot yang sama secara bersamaan.
 
 ## Troubleshooting
 
@@ -254,7 +297,11 @@ Tambahkan variabel baru dari `.env.example` ke `.env` secara manual. Uji scan la
 | CLI tidak ditemukan | Instal dan pastikan PATH proses/service benar |
 | GMGN 401/403/timeout | Periksa kredensial, akses query, jaringan, dan petunjuk resmi |
 | Semua mint menjadi MOCK | Normal pada mode `mock` |
+| CA langsung tidak dibalas di grup | Periksa privacy mode BotFather dan izin bot membaca/mengirim pesan |
+| CA langsung tidak dibalas di chat pribadi | Kirim satu alamat Solana saja; cek proses bot dan log |
+| Alamat `0x...` tidak dibalas | Dukungan EVM belum diimplementasikan |
+| Command wallet/runner atau Discord tidak tersedia | Masih rencana; lihat roadmap |
 | PostgreSQL tidak berisi laporan | Persistence belum terhubung pada MVP |
 | Build gagal pada Node lama | Gunakan versi kompatibel dan install dependency ulang |
 
-Instalasi dasar selesai ketika API mengembalikan fixture dan bot membalas laporan. Data pasar live dan benchmark riil masih perlu divalidasi.
+Instalasi Telegram selesai ketika `/start` dibalas dan satu CA Solana langsung menghasilkan satu laporan. Jika API dipasang, pastikan contoh request juga mengembalikan HTTP 200. Data pasar live dan benchmark riil masih perlu divalidasi.

@@ -17,16 +17,21 @@ pnpm install --frozen-lockfile
 cp .env.example .env
 pnpm build
 pnpm test
-pnpm api:dev
 ```
 
-Isi `TELEGRAM_BOT_TOKEN` di `.env`, lalu di terminal lain jalankan:
+Isi `TELEGRAM_BOT_TOKEN` dari BotFather di `.env`, lalu jalankan:
 
 ```bash
 pnpm telegram:dev
 ```
 
+Buka chat bot, kirim `/start`, lalu kirim satu CA Solana tanpa `/scan`. Untuk mencoba HTTP API secara terpisah, jalankan `pnpm api:dev` di terminal lain.
+
 Kedua script memuat `.env` dari root repo. Bot dan API adalah proses independen; bot memanggil scanner langsung sehingga API tidak perlu aktif untuk menggunakan Telegram.
+
+## Rencana Berikutnya
+
+Bank smart wallet bersama, deteksi token runner, Discord, serta dukungan BSC/Ethereum/Robinhood Chain masih berupa rencana dan belum aktif pada kode saat ini. Lihat [rencana fitur](docs/roadmap.md) untuk mekanisme yang diusulkan dan [status instalasi](docs/installation.md#status-fitur-sebelum-instalasi) untuk fitur yang sudah dapat dijalankan.
 
 ## Komponen
 
@@ -84,7 +89,7 @@ Statistik outcome bawaan berasal dari fixture sintetis, belum merupakan backtest
 ## Batas MVP
 
 - Tidak melakukan transaksi atau menggunakan private key wallet.
-- Data diambil saat `/scan`; tidak ada monitoring harga atau alert otomatis.
+- Data diambil saat CA dikirim langsung atau melalui `/scan`; tidak ada monitoring harga atau alert otomatis.
 - Adapter live hanya mengambil `token info`. Metrik belum terpetakan diisi nol, sehingga skor live belum layak dipakai untuk keputusan finansial.
 - PostgreSQL belum terhubung ke proses scan; belum ada migrasi atau penyimpanan laporan ke database.
 - API belum memiliki autentikasi atau rate limiting. Batasi akses server seperti pada tutorial.
