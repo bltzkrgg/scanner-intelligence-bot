@@ -60,6 +60,11 @@ export type MarketSnapshot = Omit<TokenSnapshot, NumericSnapshotField> & {
   holderCount?: number | null;
   dataWarnings?: string[];
   runnerBlockReason?: string | null;
+  volume5mUsd?: number | null;
+  swaps5m?: number | null;
+  totalFeesNative?: number | null;
+  feesNativeSymbol?: "SOL" | "BNB" | "ETH";
+  dexAgeMinutes?: number | null;
 };
 
 export type MetricScore = {

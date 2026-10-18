@@ -3,6 +3,8 @@ import { dirname } from "node:path";
 import { z } from "zod";
 import { chainSchema, normalizeAddress, tokenAddressSchema, CHAIN_NAMES, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "@sti/gmgn";
+import { alertConfigSchema, defaultAlertConfig, alertsEnabled, alertInterval, maxAlertsPerScan,
+  evaluateTokenAlert, evaluateVolumeSpike, updateAlertConfig } from "./alert-config.js";
 
 export type RunnerAssessment = { score: number | null; candidate: boolean; reasons: string[] };
 
@@ -48,14 +50,30 @@ const recordSchema = z.object({
   liquidityUsd: z.number().nonnegative().nullable().default(null),
   marketCapUsd: z.number().nonnegative().nullable().default(null),
   riskNotes: z.array(z.string()).default([]),
+  volume5mUsd: z.number().nonnegative().nullable().default(null),
+  swaps5m: z.number().int().nonnegative().nullable().default(null),
+  totalFeesNative: z.number().nonnegative().nullable().default(null),
+  feesNativeSymbol: z.enum(["SOL", "BNB", "ETH"]).nullable().default(null),
+  dexAgeMinutes: z.number().nonnegative().nullable().default(null),
+  baselineVolume5mUsd: z.number().nonnegative().nullable().default(null),
+  spikeMultiplier: z.number().nonnegative().nullable().default(null),
+  qualification: z.enum(["legacy", "configured", "spike"]).default("legacy"),
   reached2xAt: z.string().datetime().nullable(), reached5xAt: z.string().datetime().nullable()
 }).transform((record) => ({ ...record, mint: normalizeAddress(record.mint, record.chain) }));
-const eventSchema = z.object({ id: z.string(), kind: z.enum(["candidate", "2x", "5x"]), record: recordSchema });
+const eventSchema = z.object({ id: z.string(), kind: z.enum(["candidate", "spike", "2x", "5x"]), record: recordSchema });
+const baselineSchema = z.object({
+  chain: chainSchema, mint: tokenAddressSchema,
+  samples: z.array(z.object({ at: z.string().datetime(), volume: z.number().nonnegative() })).max(4),
+  lastObservedAt: z.string().datetime(), lastSpikeAt: z.string().datetime().nullable()
+});
 const stateSchema = z.object({
-  version: z.union([z.literal(1), z.literal(2)]).transform(() => 2 as const),
+  version: z.union([z.literal(1), z.literal(2), z.literal(3)]).transform(() => 3 as const),
   paused: z.boolean(), lastCycleAt: z.string().datetime().nullable(),
   lastError: z.string().nullable(), records: z.array(recordSchema).max(150),
-  pendingAlerts: z.array(eventSchema).max(450).default([]),
+  pendingAlerts: z.array(eventSchema).max(1000).default([]),
+  alertConfig: alertConfigSchema.prefault({}),
+  volumeBaselines: z.array(baselineSchema).max(500).default([]),
+  chainPolledAt: z.partialRecord(chainSchema, z.string().datetime()).default({}),
   lastNotificationAt: z.string().datetime().nullable().default(null),
   lastNotificationError: z.string().nullable().default(null)
 });
@@ -66,8 +84,9 @@ export type RunnerEvent = z.infer<typeof eventSchema>;
 // One writer process per file. Atomic rename preserves the previous state on interrupted writes.
 export class RunnerMonitor {
   private state: RunnerState = {
-    version: 2, paused: false, lastCycleAt: null, lastError: null, records: [],
-    pendingAlerts: [], lastNotificationAt: null, lastNotificationError: null
+    version: 3, paused: false, lastCycleAt: null, lastError: null, records: [],
+    pendingAlerts: [], lastNotificationAt: null, lastNotificationError: null,
+    alertConfig: defaultAlertConfig(), volumeBaselines: [], chainPolledAt: {}
   };
   private mutations: Promise<unknown> = Promise.resolve();
   private cycling = false;
@@ -108,11 +127,22 @@ export class RunnerMonitor {
     await this.mutate((next) => { next.paused = paused; });
   }
 
+  async setConfig(key: string, input: string): Promise<{ key: string; value: unknown }> {
+    let updated: { key: string; value: unknown } = { key, value: null };
+    await this.mutate((next) => {
+      const result = updateAlertConfig(next.alertConfig, key, input);
+      next.alertConfig = result.config;
+      updated = { key: result.key, value: result.value };
+    });
+    return updated;
+  }
+
   async remove(mint: string, chain: Chain = "sol"): Promise<void> {
     mint = normalizeAddress(mint, chain);
     await this.mutate((next) => {
       next.records = next.records.filter((entry) => entry.mint !== mint || entry.chain !== chain);
       next.pendingAlerts = next.pendingAlerts.filter((event) => event.record.mint !== mint || event.record.chain !== chain);
+      next.volumeBaselines = next.volumeBaselines.filter((entry) => entry.mint !== mint || entry.chain !== chain);
     });
   }
 
@@ -124,20 +154,54 @@ export class RunnerMonitor {
     const mint = normalizeAddress(s.mint, chain);
     await this.mutate((next) => {
       if (next.paused || this.stopped) return;
+      if (!alertsEnabled(next.alertConfig, chain)) return;
       const existing = next.records.find((entry) => entry.mint === mint && entry.chain === chain);
       if (existing && s.observedAt <= existing.lastSeenAt) return;
+      let baseline = next.volumeBaselines.find((entry) => entry.chain === chain && entry.mint === mint);
+      if (baseline && s.observedAt <= baseline.lastObservedAt) return;
+      const now = Date.parse(s.observedAt);
+      const previous = baseline?.samples.filter((sample) => {
+        const age = now - Date.parse(sample.at);
+        return age >= 300000 && age <= 1800000;
+      }).slice(-3) ?? [];
+      const baselineVolume = previous.length === 3 ? previous.reduce((sum, sample) => sum + sample.volume, 0) / 3 : null;
+      const spike = chain === "sol" && evaluateVolumeSpike(s, next.alertConfig, baselineVolume).passed
+        && (!baseline?.lastSpikeAt || now - Date.parse(baseline.lastSpikeAt) >= next.alertConfig.tokenAlerts.volumeSpikeCooldownMin * 60000);
+      const qualifies = chain === "bsc" ? assessment.candidate : evaluateTokenAlert(s, next.alertConfig).passed;
+      if (chain === "sol" && s.volume5mUsd != null && Number.isFinite(s.volume5mUsd) && s.volume5mUsd >= 0) {
+        if (!baseline) {
+          baseline = { chain, mint, samples: [], lastObservedAt: s.observedAt, lastSpikeAt: null };
+          next.volumeBaselines.push(baseline);
+        }
+        baseline.lastObservedAt = s.observedAt;
+        const lastSample = baseline.samples.at(-1);
+        if (!lastSample || now - Date.parse(lastSample.at) >= 300000) {
+          baseline.samples.push({ at: s.observedAt, volume: s.volume5mUsd });
+          baseline.samples = baseline.samples.slice(-4);
+        }
+        next.volumeBaselines.sort((a, b) => Date.parse(b.lastObservedAt) - Date.parse(a.lastObservedAt));
+        next.volumeBaselines = next.volumeBaselines.slice(0, 500);
+      }
+      const details = {
+        volume5mUsd: s.volume5mUsd ?? null, swaps5m: s.swaps5m ?? null,
+        totalFeesNative: s.totalFeesNative ?? null, feesNativeSymbol: s.feesNativeSymbol ?? null,
+        dexAgeMinutes: s.dexAgeMinutes ?? null, baselineVolume5mUsd: baselineVolume,
+        spikeMultiplier: baselineVolume && s.volume5mUsd != null ? s.volume5mUsd / baselineVolume : null
+      };
       if (!existing) {
-        if (!assessment.candidate || next.records.filter((entry) => entry.chain === chain).length >= 50) return;
+        if ((!qualifies && !spike) || next.records.filter((entry) => entry.chain === chain).length >= 50) return;
         const record: RunnerRecord = {
           chain, mint, symbol: s.symbol, firstSeenAt: s.observedAt, lastSeenAt: s.observedAt,
           initialPrice: s.priceUsd!, latestPrice: s.priceUsd!, peakPrice: s.priceUsd!,
           maxDrawdownPct: 0, score: assessment.score, candidate: true, observations: 1,
+          ...details, qualification: spike && !qualifies ? "spike" : chain === "bsc" ? "legacy" : "configured",
           liquidityUsd: s.liquidityUsd, marketCapUsd: s.marketCapUsd,
           riskNotes: s.dataWarnings ?? [],
           reached2xAt: null, reached5xAt: null
         };
         next.records.push(record);
-        enqueue(next, "candidate", record);
+        enqueue(next, spike && !qualifies ? "spike" : "candidate", record);
+        if (spike && baseline) baseline.lastSpikeAt = s.observedAt;
         return;
       }
       existing.lastSeenAt = s.observedAt;
@@ -145,10 +209,11 @@ export class RunnerMonitor {
       existing.liquidityUsd = s.liquidityUsd;
       existing.marketCapUsd = s.marketCapUsd;
       existing.riskNotes = s.dataWarnings ?? [];
+      Object.assign(existing, details);
       existing.peakPrice = Math.max(existing.peakPrice, s.priceUsd!);
       existing.maxDrawdownPct = Math.min(existing.maxDrawdownPct, (s.priceUsd! / existing.peakPrice - 1) * 100);
       existing.score = assessment.score;
-      existing.candidate = assessment.candidate;
+      existing.candidate = qualifies || spike;
       existing.observations++;
       if (s.priceUsd! / existing.initialPrice >= 2 && !existing.reached2xAt) {
         existing.reached2xAt = s.observedAt;
@@ -158,21 +223,36 @@ export class RunnerMonitor {
         existing.reached5xAt = s.observedAt;
         enqueue(next, "5x", existing);
       }
+      if (spike) {
+        existing.qualification = "spike";
+        enqueue(next, "spike", existing);
+        if (baseline) baseline.lastSpikeAt = s.observedAt;
+      }
     });
   }
 
-  async deliverNotifications(send: (event: RunnerEvent) => Promise<void>): Promise<void> {
+  async deliverNotifications(send: (event: RunnerEvent) => Promise<void>, chains: Chain[] = this.chains): Promise<void> {
     if (!this.active || this.delivering) return;
     this.delivering = true;
     try {
-      for (const event of this.snapshot().pendingAlerts.filter((entry) => this.chains.includes(entry.record.chain)).slice(0, 10)) {
+      const counts: Partial<Record<Chain, number>> = {};
+      const pending = this.snapshot().pendingAlerts.filter((entry) => chains.includes(entry.record.chain)
+        && this.chains.includes(entry.record.chain) && alertsEnabled(this.state.alertConfig, entry.record.chain));
+      let sent = 0;
+      for (const event of pending) {
         if (!this.active) break;
+        const chain = event.record.chain;
+        if (!alertsEnabled(this.state.alertConfig, chain)) continue;
+        if ((counts[chain] ?? 0) >= maxAlertsPerScan(this.state.alertConfig, chain)) continue;
+        if (sent >= 50) break;
         try {
           await send(event);
           await this.mutate((next) => {
             next.pendingAlerts = next.pendingAlerts.filter((entry) => entry.id !== event.id);
             next.lastNotificationAt = new Date().toISOString(); next.lastNotificationError = null;
           });
+          counts[chain] = (counts[chain] ?? 0) + 1;
+          sent++;
         } catch {
           await this.mutate((next) => {
             next.lastNotificationError = "Notifikasi runner gagal. Periksa chat ID/izin Telegram; antrean dipertahankan.";
@@ -183,20 +263,27 @@ export class RunnerMonitor {
     } finally { this.delivering = false; }
   }
 
-  async cycle(): Promise<void> {
-    if (!this.active || this.cycling) return;
+  async cycle(options: { scheduled?: boolean; now?: number; fallbackIntervalSec?: number } = {}): Promise<Chain[]> {
+    if (!this.active || this.cycling) return [];
+    const now = options.now ?? Date.now();
+    const chains = this.chains.filter((chain) => alertsEnabled(this.state.alertConfig, chain) && (!options.scheduled
+      || now - Date.parse(this.state.chainPolledAt[chain] ?? "1970-01-01T00:00:00.000Z") >= alertInterval(this.state.alertConfig, chain, options.fallbackIntervalSec ?? 300) * 1000));
+    if (!chains.length) return [];
     this.cycling = true;
+    const polledAt: Partial<Record<Chain, string>> = {};
     try {
       let hadError = false;
-      for (const chain of this.chains) {
+      for (const chain of chains) {
         if (!this.active) break;
+        if (!alertsEnabled(this.state.alertConfig, chain)) continue;
+        polledAt[chain] = new Date(options.now ?? Date.now()).toISOString();
         let discovered: string[] = [];
         try { discovered = await this.adapter.discoverTokens?.(chain) ?? []; }
         catch { hadError = true; }
         const tracked = this.state.records.filter((entry) => entry.chain === chain && Date.now() - Date.parse(entry.firstSeenAt) < 7 * 86400_000);
         const addresses = [...new Set([...tracked.map((entry) => entry.mint), ...discovered])];
         for (const mint of addresses) {
-          if (!this.active) break;
+          if (!this.active || !alertsEnabled(this.state.alertConfig, chain)) break;
           try {
             const snapshot = await this.adapter.getTokenSnapshot(mint, chain);
             if (snapshot.chain && snapshot.chain !== chain) throw new Error("Chain mismatch");
@@ -205,6 +292,7 @@ export class RunnerMonitor {
         }
       }
       await this.mutate((next) => {
+        Object.assign(next.chainPolledAt, polledAt);
         next.lastCycleAt = new Date().toISOString();
         next.lastError = hadError ? "Sebagian query discovery/token gagal. Periksa GMGN; data lama tidak dianggap data baru." : null;
       });
@@ -213,6 +301,7 @@ export class RunnerMonitor {
         next.lastError = "Siklus runner gagal. Periksa GMGN/izin file; data lama tidak dianggap data baru.";
       });
     } finally { this.cycling = false; }
+    return Object.keys(polledAt) as Chain[];
   }
 }
 
@@ -232,21 +321,32 @@ export function formatRunnerRecord(record: RunnerRecord, now = Date.now()): stri
 }
 
 function enqueue(state: RunnerState, kind: RunnerEvent["kind"], record: RunnerRecord): void {
-  const id = `${record.chain}:${record.mint}:${record.firstSeenAt}:${kind}`;
+  const id = `${record.chain}:${record.mint}:${record.firstSeenAt}:${kind}${kind === "spike" ? `:${record.lastSeenAt}` : ""}`;
   if (!state.pendingAlerts.some((event) => event.id === id)) {
+    if (state.pendingAlerts.length >= 1000) throw new Error("Antrean alert penuh; pengiriman harus dipulihkan sebelum observasi baru disimpan.");
     state.pendingAlerts.push({ id, kind, record: structuredClone(record) });
   }
 }
 
 export function formatRunnerNotification(event: RunnerEvent): string {
+  const r = event.record;
+  const number = (value: number | null, digits = 2): string => value === null ? "belum tersedia"
+    : value.toLocaleString("en-US", { maximumFractionDigits: digits });
   return [
-    event.kind === "candidate" ? "KANDIDAT TOKEN RUNNER BARU" : `TOKEN RUNNER: ${event.kind.toUpperCase()} TERAMATI`,
+    event.kind === "candidate" ? "KANDIDAT TOKEN RUNNER BARU" : event.kind === "spike" ? "VOLUME SPIKE TERDETEKSI" : `TOKEN RUNNER: ${event.kind.toUpperCase()} TERAMATI`,
     Date.now() - Date.parse(event.record.lastSeenAt) > 15 * 60_000 ? "NOTIFIKASI TERTUNDA: data saat event, bukan harga terbaru." : "",
-    `Jaringan: ${CHAIN_NAMES[event.record.chain]}`,
-    formatRunnerRecord(event.record),
-    `Likuiditas USD: ${event.record.liquidityUsd ?? "belum tersedia"}; market cap USD: ${event.record.marketCapUsd ?? "belum tersedia"}`,
+    `${CHAIN_NAMES[r.chain]} | ${r.symbol}\nCA: ${r.mint}`,
+    [`Harga: $${number(r.latestPrice, 10)}`, `Market cap: $${number(r.marketCapUsd)}`,
+      `Likuiditas: $${number(r.liquidityUsd)}`, `Volume 5m: $${number(r.volume5mUsd)}`,
+      `Swaps 5m: ${number(r.swaps5m, 0)}`, `Total fees GMGN: ${number(r.totalFeesNative, 6)} ${r.feesNativeSymbol ?? "native"}`,
+      `Umur DEX/migration: ${number(r.dexAgeMinutes)} menit`].join("\n"),
+    event.kind === "spike" ? `Lonjakan: ${number(r.spikeMultiplier)}x\nBaseline 5m: $${number(r.baselineVolume5mUsd)} (rata-rata 3 jendela sebelumnya)`
+      : event.kind === "candidate" ? `Lolos: ${r.qualification === "legacy" ? "rule eksperimen BSC" : "filter alert admin"}. Bukan skor profit.`
+      : `Sejak deteksi: ${(r.latestPrice / r.initialPrice).toFixed(2)}x (${((r.latestPrice / r.initialPrice - 1) * 100).toFixed(2)}%)\nHarga awal: $${number(r.initialPrice, 10)}`,
+    ...(r.riskNotes.length ? [`Risiko / keterbatasan: ${r.riskNotes.join(" ")}`] : []),
+    `Data: GMGN CLI | ${r.lastSeenAt}`,
     `Detail: /runner ${event.record.chain} ${event.record.mint}`,
     `Event ID: ${event.id}`,
-    "Harga berdasarkan sampel saat query. Kandidat bukan jaminan kenaikan atau sinyal beli."
+    "Harga berdasarkan sampel saat query. Filter momentum bukan pemeriksaan risiko lengkap. Kandidat bukan jaminan kenaikan atau sinyal beli."
   ].join("\n\n");
 }

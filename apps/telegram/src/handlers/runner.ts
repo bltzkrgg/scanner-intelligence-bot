@@ -1,5 +1,5 @@
 import type { Bot, Context } from "grammy";
-import { assessRunner, formatRunnerRecord, type IntelligenceScanner, type RunnerMonitor } from "@sti/analysis";
+import { assessRunner, evaluateTokenAlert, formatRunnerRecord, type IntelligenceScanner, type RunnerMonitor } from "@sti/analysis";
 import { CHAIN_NAMES, parseTokenInput, type AppConfig } from "@sti/shared";
 import { resolveTokenInput } from "./token-input.js";
 
@@ -73,7 +73,8 @@ async function runnerInput(ctx: Context, text: string, monitor: RunnerMonitor, s
       await ctx.reply([
         `${snapshot.symbol} | ${CHAIN_NAMES[input.chain]} | ${snapshot.mint}`,
         `Runner Score: ${assessment.score ?? "belum tersedia"}`,
-        `Status saat query: ${assessment.candidate ? "KANDIDAT" : "BELUM MEMENUHI / DATA BELUM LENGKAP"}`,
+        `Status rule skor eksperimen: ${assessment.candidate ? "KANDIDAT" : "BELUM MEMENUHI / DATA BELUM LENGKAP"}`,
+        ...(input.chain === "bsc" ? [] : [`Filter alert admin: ${evaluateTokenAlert(snapshot, monitor.snapshot().alertConfig).passed ? "LOLOS" : "BELUM LOLOS"}`]),
         ...assessment.reasons,
         tracked ? formatRunnerRecord(tracked) : "Belum masuk histori deteksi.",
         monitor.active ? "Pemantauan aktif." : "Pemantauan nonaktif. Admin perlu mengaktifkan runner.",

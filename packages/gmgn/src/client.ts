@@ -19,10 +19,13 @@ const tokenSchema = z.object({
   circulating_supply: positive,
   liquidity: positive,
   creation_timestamp: positive,
+  open_timestamp: positive,
+  migrated_timestamp: positive,
+  total_fee: positive,
   holder_count: count,
   price: z.object({
     price: positive, price_1h: positive, price_6h: positive,
-    volume_24h: positive, buys_1h: count, sells_1h: count
+    volume_24h: positive, volume_5m: positive, swaps_5m: count, buys_1h: count, sells_1h: count
   }).prefault({}),
   pool: z.object({ liquidity: positive }).prefault({}),
   stat: z.object({ top_10_holder_rate: ratio }).prefault({}),
@@ -76,6 +79,7 @@ export function parseTokenInfo(input: unknown, mint: string, security?: unknown,
   }
   const marketCap = raw.price.price !== null && raw.circulating_supply !== null
     ? raw.price.price * raw.circulating_supply : null;
+  const dexOpenedAt = Math.max(raw.migrated_timestamp ?? 0, raw.open_timestamp ?? 0);
   return {
     chain, mint, symbol: raw.symbol, name: raw.name, priceUsd: raw.price.price,
     marketCapUsd: marketCap !== null && Number.isFinite(marketCap) ? marketCap : null,
@@ -83,6 +87,9 @@ export function parseTokenInfo(input: unknown, mint: string, security?: unknown,
     ageMinutes: raw.creation_timestamp !== null && raw.creation_timestamp > 0 && raw.creation_timestamp * 1000 <= now
       ? (now - raw.creation_timestamp * 1000) / 60_000 : null,
     holderCount: raw.holder_count, volume24hUsd: raw.price.volume_24h,
+    volume5mUsd: raw.price.volume_5m, swaps5m: raw.price.swaps_5m,
+    totalFeesNative: raw.total_fee, feesNativeSymbol: chain === "sol" ? "SOL" : chain === "bsc" ? "BNB" : "ETH",
+    dexAgeMinutes: dexOpenedAt > 0 && dexOpenedAt * 1000 <= now ? (now - dexOpenedAt * 1000) / 60_000 : null,
     buys1h: raw.price.buys_1h, sells1h: raw.price.sells_1h,
     top10HolderPct: pct(safety?.top_10_holder_rate ?? raw.stat.top_10_holder_rate),
     insiderPct: pct(safety?.suspected_insider_hold_rate),
@@ -161,12 +168,12 @@ export class CliGmgnAdapter implements GmgnAdapter {
     } catch { security = undefined; }
     const snapshot = parseTokenInfo(raw, mint, security, Date.now(), chain);
     if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value!);
-    this.cache.set(`${chain}:${mint}`, { until: Date.now() + 30_000, value: snapshot });
+    this.cache.set(`${chain}:${mint}`, { until: Date.now() + 10_000, value: snapshot });
     return snapshot;
   }
 
   async discoverTokens(chain: Chain = "sol"): Promise<string[]> {
-    const raw = await this.request(["market", "trending", "--chain", chain, "--interval", "1h", "--limit", "10", "--raw"]);
+    const raw = await this.request(["market", "trending", "--chain", chain, "--interval", "5m", "--limit", "10", "--raw"]);
     return parseTrending(raw, chain);
   }
 }

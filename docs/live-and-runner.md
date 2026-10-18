@@ -93,7 +93,7 @@ sudo journalctl -u scanner-telegram -n 50 --no-pager
 
 Pastikan path Node, pnpm, dan gmgn-cli tersedia pada PATH service systemd. Periksa dengan `command -v node`, `command -v pnpm`, dan `command -v gmgn-cli`, lalu sesuaikan unit seperti pada [tutorial instalasi](installation.md#10-jalankan-terus-di-server-ubuntu). Jangan jalankan terminal dan service bersamaan.
 
-Kirim `/runners` untuk status worker. Jika state lama dijeda, admin mengirim `/runner_on`. Worker memulai discovery saat startup; selanjutnya menunggu interval yang dikonfigurasi setelah setiap siklus selesai. Saat diaktifkan kembali dengan command, query berjalan pada jadwal siklus berikutnya. Tidak ada siklus yang tumpang tindih.
+Kirim `/runners` untuk status worker. Jika state lama dijeda, admin mengirim `/runner_on`. Jadwal Solana/RH kini diatur lewat `/setconfig` (default 60 detik), BSC memakai RUNNER_INTERVAL_SECONDS. Interval minimum antar awal polling; query lambat/cooldown dapat memperpanjangnya. Tidak ada siklus tumpang tindih. Lihat [pengaturan dan notifikasi runner](runner-config.md).
 
 ## Command
 
@@ -115,6 +115,8 @@ Kirim `/runners` untuk status worker. Jika state lama dijeda, admin mengirim `/r
 ## Aturan Kandidat
 
 Runner Score bukan skor risiko atau probabilitas profit. Ini rule eksperimen yang transparan, belum dikalibrasi lewat backtest.
+
+Rule skor di bawah masih ditampilkan pada laporan dan menjadi filter kandidat BSC. Kandidat baru Solana/RH sekarang memakai filter volume5m, fees dan syarat admin lainnya di [runner-config.md](runner-config.md), bukan syarat skor >= 70. Volume spike Solana juga memiliki pemicu tersendiri.
 
 | Komponen | Poin |
 | --- | --- |
@@ -144,7 +146,7 @@ Status kandidat diperbarui berdasarkan data terbaru; label MELEMAH / DATA BELUM 
 
 State ditulis ke `RUNNER_STATE_FILE` memakai temporary file dan atomic rename. Status jeda serta histori bertahan saat restart. Direktori `data/` diabaikan Git dan harus dapat ditulis oleh user service. Gunakan satu proses bot untuk satu file; file ini tidak mendukung beberapa penulis/server sekaligus.
 
-State versi 1 dimigrasikan menjadi versi 2: histori lama dianggap Solana dan tidak menghasilkan alert kandidat retrospektif. Antrean alert baru ikut disimpan. Simpan backup sebelum upgrade; versi bot lama tidak dapat membaca state versi 2.
+State versi 1/2 dimigrasikan menjadi versi 3: histori versi 1 dianggap Solana dan tidak menghasilkan alert kandidat retrospektif. Antrean alert, config admin dan baseline/cooldown spike ikut disimpan. Simpan backup sebelum upgrade; versi bot lama tidak dapat membaca state versi 3.
 
 Backup saat service dihentikan:
 

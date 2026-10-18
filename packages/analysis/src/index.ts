@@ -9,3 +9,4 @@ export * from "./service.js";
 export * from "./similarity.js";
 export * from "./smartMoney.js";
 export * from "./runner.js";
+export * from "./alert-config.js";

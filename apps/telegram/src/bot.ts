@@ -6,6 +6,7 @@ import { startCommand } from "./commands/start.js";
 import { registerScanHandlers } from "./handlers/scan.js";
 import { configureTelegramMenu, registerUtilityCommands, sendStartupNotification, sendRunnerNotifications } from "./lifecycle.js";
 import { registerRunnerCommands } from "./handlers/runner.js";
+import { registerConfigCommands } from "./handlers/config.js";
 
 const config = loadConfig();
 
@@ -28,6 +29,7 @@ await runner.init();
 bot.command("start", startCommand);
 registerUtilityCommands(bot, config, runner);
 registerRunnerCommands(bot, runner, scanner, config);
+registerConfigCommands(bot, runner, config);
 registerScanHandlers(bot, scanner, runner);
 
 bot.catch((error) => {
@@ -45,9 +47,10 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let cycle: Promise<void> | undefined;
 async function tick(): Promise<void> {
   if (stopping) return;
-  cycle = runner.cycle().then(() => sendRunnerNotifications(bot, runner, config));
+  cycle = runner.cycle({ scheduled: true, fallbackIntervalSec: config.runnerIntervalSeconds })
+    .then((chains) => sendRunnerNotifications(bot, runner, config, chains));
   try { await cycle; } catch { logger.warn("Runner cycle or state write failed"); }
-  if (!stopping) timer = setTimeout(() => { void tick(); }, config.runnerIntervalSeconds * 1000);
+  if (!stopping) timer = setTimeout(() => { void tick(); }, 1000);
 }
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {

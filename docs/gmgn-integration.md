@@ -11,7 +11,7 @@ Updated and tested on 2026-10-18 with official gmgn-cli 1.6.7 and its documented
 
 This repo does not scrape undocumented GMGN web endpoints.
 
-The live adapter uses read-only `token info` and `token security` with `--chain <sol|bsc|robinhood> --address <mint> --raw`. Discovery uses `market trending --chain <chain> --interval 1h --limit 10 --raw`. Supported payloads include direct objects and successful `{code:0,data:...}` envelopes, both observed in CLI 1.6.7. Response mint must match the requested mint; EVM comparisons are case-insensitive. Provider failures never fall back to fixture data.
+The live adapter uses read-only `token info` and `token security` with `--chain <sol|bsc|robinhood> --address <mint> --raw`. Discovery uses `market trending --chain <chain> --interval 5m --limit 10 --raw`. Supported payloads include direct objects and successful `{code:0,data:...}` envelopes, both observed in CLI 1.6.7. Response mint must match the requested mint; EVM comparisons are case-insensitive. Provider failures never fall back to fixture data.
 
 Enabled networks are explicit. Bare EVM addresses require chain selection in Telegram or a chain argument in the API. Caches and runner histories use chain + normalized address. Solana mint/freeze rules are not applied to EVM. BSC requires known honeypot status; unavailable RH honeypot coverage is disclosed in reports and alerts rather than interpreted as safe. Known adverse findings block candidates on all chains. Real-world provider permissions and plan limits still apply; enabling a network does not imply a successful live health check.
 

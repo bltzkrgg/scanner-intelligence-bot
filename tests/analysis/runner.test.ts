@@ -31,7 +31,7 @@ describe("runner detection and persistence", () => {
     await monitor.observe({ ...base, priceUsd: 1, observedAt: new Date(time).toISOString() });
     await monitor.observe({ ...base, priceUsd: 2.5, observedAt: new Date(time + 1000).toISOString() });
     await monitor.observe({ ...base, priceUsd: 5, observedAt: new Date(time + 2000).toISOString() });
-    await monitor.observe({ ...base, priceUsd: 2, observedAt: new Date(time + 3000).toISOString(), priceChange1hPct: -20 });
+    await monitor.observe({ ...base, priceUsd: 2, observedAt: new Date(time + 3000).toISOString(), priceChange1hPct: -20, volume5mUsd: 0 });
     await monitor.observe({ ...base, priceUsd: 100, observedAt: new Date(time + 2000).toISOString() });
     const restored = new RunnerMonitor(adapter, file, true);
     await restored.init();

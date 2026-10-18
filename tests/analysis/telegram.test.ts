@@ -7,6 +7,7 @@ import { registerUtilityCommands } from "../../apps/telegram/src/lifecycle.js";
 import { loadConfig } from "../../packages/shared/src/config.js";
 import { RunnerMonitor } from "../../packages/analysis/src/runner.js";
 import { registerRunnerCommands } from "../../apps/telegram/src/handlers/runner.js";
+import { registerConfigCommands } from "../../apps/telegram/src/handlers/config.js";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -54,6 +55,34 @@ function setup() {
 }
 
 describe("Telegram scan routing", () => {
+  it("restricts config commands to admins and replies to validation failures", async () => {
+    const { bot } = setup();
+    const file = join(await mkdtemp(join(tmpdir(), "telegram-config-")), "state.json");
+    const monitor = new RunnerMonitor(new FixtureGmgnAdapter(), file, true);
+    const isolated = new Bot("test-token", { botInfo: bot.botInfo });
+    const reply = vi.fn();
+    isolated.api.config.use(async (_previous, method, payload) => {
+      reply(method, payload);
+      return { ok: true, result: true } as never;
+    });
+    registerConfigCommands(isolated, monitor, loadConfig({ TELEGRAM_ADMIN_IDS: "99" }));
+    async function send(text: string, id = 99) {
+      await isolated.handleUpdate({ update_id: 1, message: { message_id: 1, date: 0,
+        chat: { id: 99, type: "private", first_name: "Admin" }, from: { id, is_bot: false, first_name: "Admin" }, text,
+        entities: [{ type: "bot_command", offset: 0, length: text.split(" ")[0].length }] } });
+    }
+    await send("/setconfig tokenAlerts.pollIntervalSec 15", 2);
+    expect(monitor.snapshot().alertConfig.tokenAlerts.pollIntervalSec).toBe(60);
+    await send("/setconfig tokenAlerts.pollIntervalSec 15");
+    expect(monitor.snapshot().alertConfig.tokenAlerts.pollIntervalSec).toBe(15);
+    await send("/setconfig tokenAlerts.pollIntervalSec 1");
+    expect(monitor.snapshot().alertConfig.tokenAlerts.pollIntervalSec).toBe(15);
+    await send("/getconfig tokenAlerts");
+    expect(reply).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ text: expect.stringContaining("tokenAlerts.pollIntervalSec: 15") }));
+    const restored = new RunnerMonitor(new FixtureGmgnAdapter(), file, true);
+    await restored.init();
+    expect(restored.snapshot().alertConfig.tokenAlerts.pollIntervalSec).toBe(15);
+  });
   it("asks for a network for bare EVM addresses and scans only after selection", async () => {
     const { send, press, scan, reply } = setup();
     await send(evm);

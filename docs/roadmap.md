@@ -2,6 +2,8 @@
 
 Status per 18 Oktober 2026: scan live dan runner Solana/BSC/Robinhood Chain serta alert Telegram sudah tersedia; lihat [aktivasi multichain](multichain-and-alerts.md). Bank wallet user, Discord, dan Ethereum masih rencana. Tutorial dasar ada di [installation.md](installation.md).
 
+Konfigurasi alert Solana/RH lewat `/setconfig` dan volume spike Solana kini tersedia; lihat [mekanisme, key, dan contoh notifikasi](runner-config.md). Permintaan insider, bundler/sniper, developer rug history, smart money flow 1h dan LP lock dicatat terpisah dalam [backlog GMGN](gmgn-enrichment-backlog.md); belum seluruhnya diambil bot.
+
 ## Bank Smart Wallet Bersama
 
 Wallet tambahan menjadi bank data bersama untuk mendeteksi token yang dibeli, dipegang, dan dijual oleh wallet tersebut. Rencana awal adalah user mengusulkan wallet dan admin menyetujui sebelum aktivitasnya memengaruhi skor. Kebijakan persetujuan ini masih perlu dikonfirmasi.

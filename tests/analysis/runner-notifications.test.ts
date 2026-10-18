@@ -60,11 +60,11 @@ describe("persistent runner notifications", () => {
     await writeFile(file, JSON.stringify(old));
     const restored = new RunnerMonitor(adapter, file, true);
     await restored.init();
-    expect(restored.snapshot().version).toBe(2);
+    expect(restored.snapshot().version).toBe(3);
     expect(restored.snapshot().records[0].chain).toBe("sol");
     expect(restored.snapshot().pendingAlerts).toHaveLength(0);
     await restored.pause(true);
-    expect(JSON.parse(await readFile(file, "utf8")).version).toBe(2);
+    expect(JSON.parse(await readFile(file, "utf8")).version).toBe(3);
   });
 
   it("does not send while paused, and deletion only removes that chain's events", async () => {

@@ -8,6 +8,8 @@ Untuk mengaktifkan data nyata dan runner, ikuti [panduan live dan runner](docs/l
 
 Untuk BSC/RH dan notifikasi, ikuti [aktivasi multichain dan alert](docs/multichain-and-alerts.md). File state Solana lama dimigrasikan otomatis tanpa mengirim ulang alert kandidat lama.
 
+Admin kini bisa mengubah filter Solana/RH dengan `/setconfig` tanpa restart, melihat `/getconfig`, dan menerima alert volume spike Solana. Daftar key, default, aktivasi PM2 dan contoh pesan ada di [pengaturan runner Telegram](docs/runner-config.md). Kebutuhan tambahan data risiko GMGN dicatat di [backlog pengayaan data](docs/gmgn-enrichment-backlog.md), belum diklaim selesai.
+
 ## Mulai
 
 Ikuti [tutorial instalasi lengkap](docs/installation.md) dari pemasangan tools, pembuatan bot Telegram, pengujian API, sampai menjalankan bot di server.
@@ -65,7 +67,7 @@ Bank smart wallet bersama milik user, Discord, dan Ethereum masih berupa rencana
 | `GMGN_PROVIDER` | `mock` | `mock` atau `cli` |
 | `GMGN_API_KEY` | kosong | Kredensial query CLI live |
 | `RUNNER_ENABLED` | `false` | Aktifkan worker runner; wajib provider `cli` dan admin IDs |
-| `RUNNER_INTERVAL_SECONDS` | `300` | Jeda setelah siklus; minimum 60 detik |
+| `RUNNER_INTERVAL_SECONDS` | `300` | Interval minimum BSC; minimum 60 detik. Solana/RH memakai `/getconfig` (default 60 detik) |
 | `RUNNER_STATE_FILE` | `data/runners.json` | File state persisten, satu proses penulis |
 | `TELEGRAM_ADMIN_IDS` | kosong | User ID admin dipisahkan koma, tanpa spasi |
 | `DATABASE_URL` | contoh URL lokal | Persiapan integrasi persistence |
@@ -104,7 +106,7 @@ Runner Score adalah rule momentum terpisah (bukan skor historis/probabilitas pro
 ## Batas MVP
 
 - Tidak melakukan transaksi atau menggunakan private key wallet.
-- Scan mengambil `token info` dan `token security`; cache per CA selama 30 detik.
+- Scan mengambil `token info` dan `token security`; cache per CA selama 10 detik.
 - Worker mengambil trending per jaringan dan memperbarui kandidat tiap siklus. Alert kandidat baru/2x/5x dikirim hanya ke TELEGRAM_RUNNER_CHAT_ID; tidak ada broadcast ke semua pengguna atau alert transaksi wallet.
 - Metrik yang tidak memiliki padanan semantik tetap `null`; volume bundler tidak diperlakukan sebagai kepemilikan bundler.
 - Runner menyimpan maksimal 50 kandidat per jaringan, memantau 7 hari sejak deteksi. Harga puncak/drawdown adalah sampel yang teramati, bukan seluruh tick pasar.
