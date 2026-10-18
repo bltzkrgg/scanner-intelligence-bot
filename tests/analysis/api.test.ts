@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerScanRoute } from "../../apps/api/src/routes/scan.js";
-import { mint } from "./live-fixtures.js";
+import { mint, evm } from "./live-fixtures.js";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -18,6 +18,11 @@ describe("scan API", () => {
         const invalid = await app.inject({ method: "POST", url: "/scan", payload });
         expect(invalid.statusCode).toBe(400);
       }
+      const ambiguous = await app.inject({ method: "POST", url: "/scan", payload: { mint: evm } });
+      expect(ambiguous.statusCode).toBe(400);
+      const bsc = await app.inject({ method: "POST", url: "/scan", payload: { mint: evm, chain: "bsc" } });
+      expect(bsc.statusCode).toBe(200);
+      expect(bsc.json().snapshot.chain).toBe("bsc");
     } finally { await app.close(); }
   });
 });

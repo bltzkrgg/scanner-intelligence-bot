@@ -1,10 +1,15 @@
 import { z } from "zod";
+import { chainSchema } from "./chains.js";
 
 const configSchema = z.object({
   nodeEnv: z.string().default("development"),
   databaseUrl: z.string().optional(),
   telegramBotToken: z.string().optional(),
   telegramStartupChatId: z.union([z.literal(""), z.string().regex(/^-?[1-9]\d*$/)]).optional(),
+  telegramRunnerChatId: z.union([z.literal(""), z.string().regex(/^-?[1-9]\d*$/)]).optional(),
+  enabledChains: z.string().default("sol,bsc,robinhood")
+    .transform((value) => [...new Set(value.split(",").map((part) => chainSchema.parse(part.trim())))])
+    .refine((value) => value.length > 0),
   gmgnProvider: z.enum(["mock", "cli"]).default("mock"),
   gmgnApiKey: z.string().optional(),
   runnerEnabled: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
@@ -23,6 +28,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     databaseUrl: env.DATABASE_URL,
     telegramBotToken: env.TELEGRAM_BOT_TOKEN,
     telegramStartupChatId: env.TELEGRAM_STARTUP_CHAT_ID,
+    telegramRunnerChatId: env.TELEGRAM_RUNNER_CHAT_ID,
+    enabledChains: env.ENABLED_CHAINS,
     gmgnProvider: env.GMGN_PROVIDER,
     gmgnApiKey: env.GMGN_API_KEY,
     runnerEnabled: env.RUNNER_ENABLED,

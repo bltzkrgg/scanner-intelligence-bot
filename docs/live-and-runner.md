@@ -1,6 +1,6 @@
 # Aktivasi Data Live dan Token Runner di Telegram
 
-Fitur versi ini: scan live Solana, deteksi kandidat berdasarkan data pasar/label smart money GMGN, serta histori harga sejak deteksi. Belum mencakup bank wallet buatan user, Discord, multichain, atau broadcast alert. PostgreSQL tidak diperlukan untuk runner versi ini.
+Fitur versi ini: scan live Solana/BSC/Robinhood Chain, deteksi kandidat berdasarkan data pasar/label smart money GMGN, histori harga, serta alert ke satu chat Telegram yang dikonfigurasi. Untuk aktivasi BSC/RH dan alert, lihat [panduan multichain](multichain-and-alerts.md). Bank wallet buatan user, Discord, dan Ethereum belum termasuk. PostgreSQL tidak diperlukan.
 
 ## 1. Update Bot
 
@@ -72,6 +72,8 @@ RUNNER_INTERVAL_SECONDS=300
 RUNNER_STATE_FILE=data/runners.json
 TELEGRAM_ADMIN_IDS=123456789
 TELEGRAM_STARTUP_CHAT_ID=123456789
+TELEGRAM_RUNNER_CHAT_ID=123456789
+ENABLED_CHAINS=sol,bsc,robinhood
 ```
 
 Ganti angka contoh dengan ID Anda. Beberapa admin dipisahkan koma tanpa spasi. `RUNNER_ENABLED=true` dengan mode mock atau tanpa admin ID membuat startup ditolak untuk mencegah pemantauan palsu/tanpa pengelola.
@@ -103,6 +105,8 @@ Kirim `/runners` untuk status worker. Jika state lama dijeda, admin mengirim `/r
 | `/runner_on` | Admin: lanjutkan worker jika RUNNER_ENABLED=true |
 | `/runner_off` | Admin: jeda worker; histori tetap tersimpan |
 | `/runner_remove <CA>` | Admin: hapus histori CA agar kapasitas tersedia |
+| `/runner_remove <bsc|rh> <CA>` | Admin: hapus histori dan alert tertunda pada jaringan terkait |
+| `/runner_test` | Admin: uji pengiriman ke TELEGRAM_RUNNER_CHAT_ID tanpa menunggu kandidat |
 | `/status` | Mode data dan status pemantauan |
 | `/chatid` | Chat ID dan User ID |
 
@@ -128,9 +132,9 @@ Bank wallet milik user belum digunakan. Angka smart money saat ini adalah label 
 
 ## Cara Discovery dan Histori Bekerja
 
-Worker mengambil maksimal 10 token trending Solana per siklus, memverifikasi token info/security, lalu menyimpan yang lolos. Scan CA oleh user juga dapat mendaftarkan kandidat ketika worker aktif. Ini cakupan terbatas, bukan pemindaian seluruh token Solana.
+Worker mengambil maksimal 10 token trending per jaringan pada ENABLED_CHAINS per siklus, memverifikasi token info/security, lalu menyimpan yang lolos. Scan CA juga dapat mendaftarkan kandidat ketika worker aktif. Ini cakupan terbatas, bukan pemindaian seluruh token di semua jaringan.
 
-Maksimal 50 kandidat tersimpan. Saat penuh, kandidat baru tidak ditambahkan; admin dapat mencadangkan file dan menghapus histori tertentu. Kandidat lama tetap diperbarui walaupun tidak trending sampai 7 hari sejak deteksi. Sesudahnya histori tetap tersimpan tanpa refresh otomatis; query `/runner <CA>` dapat memperbarui catatan jika monitoring aktif.
+Maksimal 50 kandidat tersimpan per jaringan. Saat kapasitas suatu jaringan penuh, kandidat baru di jaringan itu tidak ditambahkan; admin dapat mencadangkan file dan menghapus histori tertentu. Kandidat lama tetap diperbarui walaupun tidak trending sampai 7 hari sejak deteksi. Sesudahnya histori tetap tersimpan tanpa refresh otomatis; query `/runner <chain> <CA>` dapat memperbarui catatan jika monitoring aktif.
 
 Harga pertama diambil saat token pertama kali memenuhi syarat dan disimpan, bukan harga peluncuran. Sistem menyimpan harga terkini, puncak teramati, max drawdown dari puncak teramati, jumlah observasi, dan waktu pencapaian 2x/5x jika tercatat. Sampel berkala dapat melewatkan spike di antara query; angka ini bukan ATH atau maksimum drawdown seluruh tick pasar. Data lebih dari 15 menit diberi label DATA LAMA.
 
@@ -139,6 +143,8 @@ Status kandidat diperbarui berdasarkan data terbaru; label MELEMAH / DATA BELUM 
 ## Penyimpanan dan Backup
 
 State ditulis ke `RUNNER_STATE_FILE` memakai temporary file dan atomic rename. Status jeda serta histori bertahan saat restart. Direktori `data/` diabaikan Git dan harus dapat ditulis oleh user service. Gunakan satu proses bot untuk satu file; file ini tidak mendukung beberapa penulis/server sekaligus.
+
+State versi 1 dimigrasikan menjadi versi 2: histori lama dianggap Solana dan tidak menghasilkan alert kandidat retrospektif. Antrean alert baru ikut disimpan. Simpan backup sebelum upgrade; versi bot lama tidak dapat membaca state versi 2.
 
 Backup saat service dihentikan:
 

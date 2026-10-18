@@ -1,4 +1,4 @@
-import type { IntelligenceResult } from "@sti/shared";
+import { CHAIN_NAMES, type IntelligenceResult } from "@sti/shared";
 import { assessRunner } from "@sti/analysis";
 
 export function formatTelegramReport(result: IntelligenceResult): string {
@@ -14,7 +14,8 @@ export function formatTelegramReport(result: IntelligenceResult): string {
   }
   const runner = assessRunner(s);
   const lines = [
-    "SOLANA TOKEN INTELLIGENCE",
+    "TOKEN INTELLIGENCE",
+    `Jaringan: ${CHAIN_NAMES[s.chain ?? "sol"]}`,
     `${s.symbol} - ${s.name}`,
     `CA: ${s.mint}`,
     `Sumber data: ${s.source}; waktu: ${s.observedAt}`,

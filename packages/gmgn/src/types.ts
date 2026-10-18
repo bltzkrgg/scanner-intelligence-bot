@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { MarketSnapshot } from "@sti/shared";
+import type { Chain, MarketSnapshot } from "@sti/shared";
 
 export const gmgnTokenResponseSchema = z
   .object({
@@ -31,6 +31,6 @@ export const gmgnTokenResponseSchema = z
 export type GmgnTokenResponse = z.infer<typeof gmgnTokenResponseSchema>;
 
 export type GmgnAdapter = {
-  getTokenSnapshot(mint: string): Promise<MarketSnapshot>;
-  discoverTokens?(): Promise<string[]>;
+  getTokenSnapshot(mint: string, chain?: Chain): Promise<MarketSnapshot>;
+  discoverTokens?(chain?: Chain): Promise<string[]>;
 };

@@ -1,6 +1,6 @@
 # Rencana Smart Wallet, Token Runner, dan Multichain
 
-Dokumen perencanaan per 18 Oktober 2026. Scan live dan runner Solana dasar sudah tersedia; lihat [panduan aktivasi](live-and-runner.md). Bank wallet user, Discord, dan multichain masih rencana. Tutorial dasar ada di [installation.md](installation.md).
+Status per 18 Oktober 2026: scan live dan runner Solana/BSC/Robinhood Chain serta alert Telegram sudah tersedia; lihat [aktivasi multichain](multichain-and-alerts.md). Bank wallet user, Discord, dan Ethereum masih rencana. Tutorial dasar ada di [installation.md](installation.md).
 
 ## Bank Smart Wallet Bersama
 
@@ -39,4 +39,4 @@ Identitas wallet/token memakai pasangan chain dan alamat. Aktivitas wallet serta
 7. Tambahkan Discord dan pemilihan chain pada kedua platform.
 8. Uji lalu perbarui tutorial dengan command, environment, dan service yang benar-benar tersedia.
 
-Notifikasi otomatis tentang transaksi atau kandidat baru merupakan keputusan scope terpisah. Worker pengumpulan data tidak otomatis berarti bot mengirim alert ke chat.
+Alert kandidat runner dan milestone 2x/5x tersedia ke satu chat yang dikonfigurasi. Alert transaksi wallet dan broadcast per-user masih di luar scope versi ini.

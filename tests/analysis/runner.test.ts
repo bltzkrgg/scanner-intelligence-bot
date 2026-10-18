@@ -19,7 +19,7 @@ describe("runner detection and persistence", () => {
     for (const overrides of [
       { source: "fixture" as const }, { top10HolderPct: null }, { insiderPct: 50 }, { liquidityUsd: 500 },
       { buys1h: 1, sells1h: 0 }, { top10HolderPct: 70 }, { priceChange1hPct: -20 },
-      { dataWarnings: ["Provider menandai honeypot."] }
+      { dataWarnings: ["Provider menandai honeypot."], runnerBlockReason: "Provider menandai honeypot." }
     ]) expect(assessRunner({ ...live(), ...overrides }).candidate).toBe(false);
     expect(assessRunner({ ...live(), insiderPct: null }).reasons.join(" ")).toContain("risiko belum dapat dinilai");
   });

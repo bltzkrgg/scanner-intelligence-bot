@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Chain } from "./chains.js";
 
 export const solanaMintSchema = z
   .string()
@@ -18,6 +19,7 @@ export const classificationSchema = z.enum([
 export type IntelligenceClassification = z.infer<typeof classificationSchema>;
 
 export type TokenSnapshot = {
+  chain?: Chain;
   mint: string;
   symbol: string;
   name: string;
@@ -48,7 +50,7 @@ export type BenchmarkToken = TokenSnapshot & {
 };
 
 export type NumericSnapshotField = {
-  [K in keyof TokenSnapshot]: TokenSnapshot[K] extends number ? K : never
+  [K in keyof TokenSnapshot]-?: TokenSnapshot[K] extends number ? K : never
 }[keyof TokenSnapshot];
 
 export type MarketSnapshot = Omit<TokenSnapshot, NumericSnapshotField> & {
@@ -57,6 +59,7 @@ export type MarketSnapshot = Omit<TokenSnapshot, NumericSnapshotField> & {
   priceUsd?: number | null;
   holderCount?: number | null;
   dataWarnings?: string[];
+  runnerBlockReason?: string | null;
 };
 
 export type MetricScore = {

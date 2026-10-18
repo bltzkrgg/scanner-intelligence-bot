@@ -16,7 +16,9 @@ Panduan ini diperbarui pada 18 Oktober 2026 berdasarkan kode dalam repository.
 | Discord | Rencana; belum ada aplikasi atau script startup |
 | Bank smart wallet bersama dan pengaruh ke skor | Rencana; belum ada command penambahan wallet |
 | Deteksi kandidat runner dan pelacakan performa | Tersedia di Telegram dengan provider live dan worker opsional |
-| BSC, Ethereum, Robinhood Chain dan pemilihan chain | Rencana; scanner saat ini hanya menerima format alamat Solana |
+| BSC, Robinhood Chain dan pemilihan chain | Tersedia; lihat panduan multichain dan alert |
+| Ethereum | Belum diimplementasikan |
+| Notifikasi runner | Kandidat baru dan milestone 2x/5x ke TELEGRAM_RUNNER_CHAT_ID |
 | Penyimpanan laporan dan aktivitas wallet di PostgreSQL | Belum terhubung |
 
 Aktivasi data nyata, command runner, dan penyimpanan histori dijelaskan di [panduan live dan runner](live-and-runner.md). Rincian pengembangan berikutnya ada di [rencana fitur](roadmap.md). Mengisi token Discord atau memasang database saja belum mengaktifkan fitur yang masih direncanakan.
@@ -177,7 +179,7 @@ Contoh pengujian setelah startup:
 | Satu CA Solana tanpa tambahan teks | Pesan demo pada mock; laporan data token pada cli |
 | `/scan <CA_Solana>` | Satu laporan yang sama |
 | `halo` atau `cek <CA>` | Diabaikan |
-| Alamat EVM `0x...` langsung | Diabaikan; multichain belum tersedia |
+| Alamat EVM `0x...` langsung | Pilihan tombol BSC/RH; scan setelah jaringan dipilih |
 
 Pada mode mock semua CA valid hanya menguji alur pesan. Tidak ada penilaian CA dari data contoh. Gunakan `pnpm gmgn:check <CA>` untuk memeriksa integrasi live sebelum mengaktifkan worker.
 
@@ -204,15 +206,16 @@ Contoh isi notifikasi pada mode mock:
 ```text
 BOT MULAI BERJALAN
 
-SOLANA TOKEN INTELLIGENCE
+TOKEN INTELLIGENCE
 Status: proses bot aktif
-Jaringan: Solana
+Jaringan: Solana, BSC, Robinhood Chain (RH)
 Mode data: MOCK / data contoh, bukan data pasar aktual.
 
-Kirim satu CA Solana langsung untuk meminta laporan.
+Kirim CA langsung. Alamat 0x akan meminta pilihan BSC atau RH.
 Menu: /start, /scan, /help, /status, /chatid, /runner, /runners.
 Runner: NONAKTIF. Interval: 300 detik setelah siklus selesai.
-Smart wallet bank sendiri, multichain, dan Discord belum aktif.
+Notifikasi runner: NONAKTIF; isi TELEGRAM_RUNNER_CHAT_ID. Antrean: 0.
+Smart wallet bank sendiri dan Discord belum aktif.
 ```
 
 Pada mode `cli`, baris mode menyatakan GMGN CLI dan bahwa koneksi provider belum diverifikasi oleh status ini. Notifikasi menunjukkan proses mulai berjalan, bukan hasil pengujian kesehatan provider. Kegagalan pengiriman notifikasi dicatat sebagai warning dan tidak menghentikan bot.
@@ -361,7 +364,7 @@ Jangan menjalankan proses terminal dan service systemd dengan token bot yang sam
 | Semua mint menjadi MOCK | Normal pada mode `mock` |
 | CA langsung tidak dibalas di grup | Periksa privacy mode BotFather dan izin bot membaca/mengirim pesan |
 | CA langsung tidak dibalas di chat pribadi | Kirim satu alamat Solana saja; cek proses bot dan log |
-| Alamat `0x...` tidak dibalas | Dukungan EVM belum diimplementasikan |
+| Alamat `0x...` tidak dibalas | Update bot, gunakan tombol BSC/RH atau /scan bsc CA; cek ENABLED_CHAINS |
 | Command wallet atau Discord tidak tersedia | Masih rencana; lihat roadmap |
 | Runner nonaktif/tidak ada kandidat | Cek RUNNER_ENABLED, mode cli, TELEGRAM_ADMIN_IDS dan /runners; kandidat hanya dicatat bila memenuhi syarat |
 | PostgreSQL tidak berisi laporan | Persistence belum terhubung pada MVP |

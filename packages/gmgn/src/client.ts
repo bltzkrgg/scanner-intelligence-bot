@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
-import { solanaMintSchema, type MarketSnapshot } from "@sti/shared";
+import { normalizeAddress, tokenAddressSchema, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "./types.js";
 
 const execFileAsync = promisify(execFile);
@@ -13,7 +13,7 @@ const positive = number.refine((value) => value === null || value >= 0);
 const count = positive.refine((value) => value === null || Number.isInteger(value));
 const ratio = positive.refine((value) => value === null || value <= 1);
 const tokenSchema = z.object({
-  address: solanaMintSchema,
+  address: tokenAddressSchema,
   symbol: z.string().max(80).default("UNKNOWN"),
   name: z.string().max(200).default("Unknown Token"),
   circulating_supply: positive,
@@ -50,9 +50,10 @@ export function unwrapGmgn(input: unknown): unknown {
   return envelope.data;
 }
 
-export function parseTokenInfo(input: unknown, mint: string, security?: unknown, now = Date.now()): MarketSnapshot {
+export function parseTokenInfo(input: unknown, mint: string, security?: unknown, now = Date.now(), chain: Chain = "sol"): MarketSnapshot {
   const raw = tokenSchema.parse(unwrapGmgn(input));
-  if (raw.address !== mint) throw new ProviderError("Alamat respons GMGN berbeda dari CA yang diminta.");
+  mint = normalizeAddress(mint, chain);
+  if (normalizeAddress(raw.address, chain) !== mint) throw new ProviderError("Alamat respons GMGN berbeda dari CA yang diminta.");
   const safety = security === undefined ? undefined : securitySchema.parse(unwrapGmgn(security));
   const pct = (value: number | null | undefined) => value == null ? null : value * 100;
   const change = (previous: number | null) => {
@@ -61,16 +62,22 @@ export function parseTokenInfo(input: unknown, mint: string, security?: unknown,
     return result !== null && Number.isFinite(result) ? result : null;
   };
   const warnings: string[] = [];
-  if (!safety) warnings.push("Data token security belum tersedia.");
-  if (safety?.is_wash_trading) warnings.push("Provider menandai indikasi wash trading.");
+  let runnerBlockReason: string | null = null;
+  const block = (reason: string) => { warnings.push(reason); runnerBlockReason = reason; };
+  if (!safety) block("Data token security belum tersedia.");
+  if (safety?.is_wash_trading) block("Provider menandai indikasi wash trading.");
   const honeypot = safety?.is_honeypot ?? safety?.honeypot;
-  if (honeypot === "yes" || honeypot === "1" || honeypot === 1 || honeypot === true) warnings.push("Provider menandai honeypot.");
-  if (safety?.renounced_mint === false) warnings.push("Otoritas mint masih aktif menurut provider.");
-  if (safety?.renounced_freeze_account === false) warnings.push("Otoritas freeze masih aktif menurut provider.");
+  if (honeypot === "yes" || honeypot === "1" || honeypot === 1 || honeypot === true) block("Provider menandai honeypot.");
+  if (chain === "sol" && safety?.renounced_mint === false) block("Otoritas mint masih aktif menurut provider.");
+  if (chain === "sol" && safety?.renounced_freeze_account === false) block("Otoritas freeze masih aktif menurut provider.");
+  if (chain !== "sol" && (honeypot == null || !["yes", "no", "1", "0", 1, 0, true, false].includes(honeypot))) {
+    if (chain === "bsc") block("Data security honeypot BSC belum tersedia.");
+    else warnings.push("Status honeypot RH belum tersedia; kandidat momentum bukan bukti kelulusan pemeriksaan ini.");
+  }
   const marketCap = raw.price.price !== null && raw.circulating_supply !== null
     ? raw.price.price * raw.circulating_supply : null;
   return {
-    mint, symbol: raw.symbol, name: raw.name, priceUsd: raw.price.price,
+    chain, mint, symbol: raw.symbol, name: raw.name, priceUsd: raw.price.price,
     marketCapUsd: marketCap !== null && Number.isFinite(marketCap) ? marketCap : null,
     liquidityUsd: raw.liquidity ?? raw.pool.liquidity,
     ageMinutes: raw.creation_timestamp !== null && raw.creation_timestamp > 0 && raw.creation_timestamp * 1000 <= now
@@ -85,7 +92,7 @@ export function parseTokenInfo(input: unknown, mint: string, security?: unknown,
     smartMoneyHolderCount: raw.wallet_tags_stat.smart_wallets,
     smartMoneyNetFlowUsd1h: null, liquidityLockedPct: null,
     priceChange1hPct: change(raw.price.price_1h), priceChange6hPct: change(raw.price.price_6h),
-    source: "gmgn-cli", observedAt: new Date(now).toISOString(), dataWarnings: warnings
+    source: "gmgn-cli", observedAt: new Date(now).toISOString(), dataWarnings: warnings, runnerBlockReason
   };
 }
 
@@ -132,40 +139,41 @@ export class CliGmgnAdapter implements GmgnAdapter {
     return task;
   }
 
-  async getTokenSnapshot(input: string): Promise<MarketSnapshot> {
-    const mint = solanaMintSchema.parse(input);
-    const cached = this.cache.get(mint);
+  async getTokenSnapshot(input: string, chain: Chain = "sol"): Promise<MarketSnapshot> {
+    const mint = normalizeAddress(input, chain);
+    const key = `${chain}:${mint}`;
+    const cached = this.cache.get(key);
     if (cached && cached.until > Date.now()) return cached.value;
-    const pending = this.pending.get(mint);
+    const pending = this.pending.get(key);
     if (pending) return pending;
-    const task = this.fetchSnapshot(mint);
-    this.pending.set(mint, task);
-    try { return await task; } finally { this.pending.delete(mint); }
+    const task = this.fetchSnapshot(mint, chain);
+    this.pending.set(key, task);
+    try { return await task; } finally { this.pending.delete(key); }
   }
 
-  private async fetchSnapshot(mint: string): Promise<MarketSnapshot> {
-    const raw = await this.request(["token", "info", "--chain", "sol", "--address", mint, "--raw"]);
+  private async fetchSnapshot(mint: string, chain: Chain): Promise<MarketSnapshot> {
+    const raw = await this.request(["token", "info", "--chain", chain, "--address", mint, "--raw"]);
     // Reject malformed/empty info before spending a second query.
-    parseTokenInfo(raw, mint);
+    parseTokenInfo(raw, mint, undefined, Date.now(), chain);
     let security: unknown;
     try {
-      security = securitySchema.parse(await this.request(["token", "security", "--chain", "sol", "--address", mint, "--raw"]));
+      security = securitySchema.parse(await this.request(["token", "security", "--chain", chain, "--address", mint, "--raw"]));
     } catch { security = undefined; }
-    const snapshot = parseTokenInfo(raw, mint, security);
+    const snapshot = parseTokenInfo(raw, mint, security, Date.now(), chain);
     if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value!);
-    this.cache.set(mint, { until: Date.now() + 30_000, value: snapshot });
+    this.cache.set(`${chain}:${mint}`, { until: Date.now() + 30_000, value: snapshot });
     return snapshot;
   }
 
-  async discoverTokens(): Promise<string[]> {
-    const raw = await this.request(["market", "trending", "--chain", "sol", "--interval", "1h", "--limit", "10", "--raw"]);
-    return parseTrending(raw);
+  async discoverTokens(chain: Chain = "sol"): Promise<string[]> {
+    const raw = await this.request(["market", "trending", "--chain", chain, "--interval", "1h", "--limit", "10", "--raw"]);
+    return parseTrending(raw, chain);
   }
 }
 
-export function parseTrending(raw: unknown): string[] {
-  const item = z.object({ address: solanaMintSchema });
+export function parseTrending(raw: unknown, chain: Chain = "sol"): string[] {
+  const item = z.object({ address: tokenAddressSchema });
   const result = z.union([z.array(item), z.object({ rank: z.array(item) }), z.object({ list: z.array(item) })]).parse(unwrapGmgn(raw));
   const tokens = Array.isArray(result) ? result : "rank" in result ? result.rank : result.list;
-  return [...new Set(tokens.map((token) => token.address))].slice(0, 10);
+  return [...new Set(tokens.map((token) => normalizeAddress(token.address, chain)))].slice(0, 10);
 }

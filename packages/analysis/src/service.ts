@@ -1,19 +1,25 @@
 import type { GmgnAdapter } from "@sti/gmgn";
 import type { BenchmarkToken, IntelligenceResult, MarketSnapshot, TokenSnapshot } from "@sti/shared";
-import { solanaMintSchema } from "@sti/shared";
+import { normalizeAddress, type Chain } from "@sti/shared";
 import { analyzeToken } from "./score.js";
 
 export class IntelligenceScanner {
   constructor(
     private readonly gmgn: GmgnAdapter,
-    private readonly benchmark?: BenchmarkToken[]
+    private readonly benchmark?: BenchmarkToken[],
+    readonly chains: Chain[] = ["sol", "bsc", "robinhood"]
   ) {}
 
-  async scan(mintInput: string): Promise<IntelligenceResult> {
-    const mint = solanaMintSchema.parse(mintInput);
-    const snapshot = await this.gmgn.getTokenSnapshot(mint);
+  async scan(mintInput: string, chain: Chain = "sol"): Promise<IntelligenceResult> {
+    if (!this.chains.includes(chain)) throw new Error("Jaringan belum diaktifkan.");
+    const mint = normalizeAddress(mintInput, chain);
+    const raw = await this.gmgn.getTokenSnapshot(mint, chain);
+    if ((raw.chain && raw.chain !== chain) || normalizeAddress(raw.mint, chain) !== mint) {
+      throw new Error("Identitas respons provider tidak sesuai chain/CA yang diminta.");
+    }
+    const snapshot = { ...raw, mint, chain };
     // Historical scoring requires an explicitly supplied dataset and complete real inputs.
-    if (snapshot.source !== "fixture" && this.benchmark?.length && isComplete(snapshot)) {
+    if (chain === "sol" && snapshot.source !== "fixture" && this.benchmark?.length && isComplete(snapshot)) {
       return analyzeToken(snapshot, this.benchmark);
     }
     return {

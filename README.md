@@ -1,10 +1,12 @@
-# Solana Token Intelligence Bot
+# Token Intelligence Bot
 
-Scanner token Solana sesuai permintaan melalui Telegram dan HTTP API. Kirim alamat mint Solana langsung (atau `/scan <mint>`) untuk laporan berbahasa Indonesia tentang distribusi holder, developer, smart money, momentum, risiko, dan perbandingan dengan benchmark tersimpan. Pesan biasa yang bukan alamat mint diabaikan.
+Scanner token Solana, BSC, dan Robinhood Chain (RH) melalui Telegram dan HTTP API. Kirim CA langsung atau `/scan <chain> <CA>`. Untuk alamat EVM tanpa chain, bot menampilkan tombol BSC/RH. Pesan biasa diabaikan.
 
-**Status:** Telegram mendukung scan data live Solana melalui GMGN CLI dan pemantauan kandidat runner. Mode default `mock` hanya menampilkan pesan demo, tanpa skor atau win rate. Field yang tidak tersedia pada mode live bernilai `null`, bukan nol. Skor historis tidak diterbitkan karena benchmark riil belum terpasang.
+**Status:** scan live dan pemantauan runner pada ketiga jaringan, dengan notifikasi Telegram untuk kandidat baru dan milestone 2x/5x teramati. Dukungan data aktual mengikuti akses GMGN. Mode default `mock` hanya pesan demo, tanpa skor atau win rate. Field tidak tersedia bernilai `null`. Skor historis belum diterbitkan karena benchmark riil belum terpasang.
 
 Untuk mengaktifkan data nyata dan runner, ikuti [panduan live dan runner](docs/live-and-runner.md). Query token dan discovery sudah diuji dengan CLI resmi dan public demo key; untuk penggunaan bot, gunakan API key Anda sendiri.
+
+Untuk BSC/RH dan notifikasi, ikuti [aktivasi multichain dan alert](docs/multichain-and-alerts.md). File state Solana lama dimigrasikan otomatis tanpa mengirim ulang alert kandidat lama.
 
 ## Mulai
 
@@ -33,7 +35,7 @@ Kedua script memuat `.env` dari root repo. Bot dan API adalah proses independen;
 
 ## Rencana Berikutnya
 
-Bank smart wallet bersama milik user, Discord, serta dukungan BSC/Ethereum/Robinhood Chain masih berupa rencana. Runner Solana memakai label smart money dari provider, bukan bank wallet user. Lihat [rencana fitur](docs/roadmap.md) dan [panduan runner](docs/live-and-runner.md).
+Bank smart wallet bersama milik user, Discord, dan Ethereum masih berupa rencana. Runner memakai label smart money provider, bukan bank wallet user. Lihat [rencana fitur](docs/roadmap.md) dan [panduan runner](docs/live-and-runner.md).
 
 ## Komponen
 
@@ -58,6 +60,8 @@ Bank smart wallet bersama milik user, Discord, serta dukungan BSC/Ethereum/Robin
 | `PORT` | `3000` | Port API |
 | `TELEGRAM_BOT_TOKEN` | kosong | Wajib untuk proses Telegram |
 | `TELEGRAM_STARTUP_CHAT_ID` | kosong | Opsional: tujuan satu notifikasi setiap proses bot dimulai |
+| `TELEGRAM_RUNNER_CHAT_ID` | kosong | Tujuan alert kandidat baru dan milestone 2x/5x; terpisah dari startup |
+| `ENABLED_CHAINS` | `sol,bsc,robinhood` | Jaringan scan dan worker yang diaktifkan |
 | `GMGN_PROVIDER` | `mock` | `mock` atau `cli` |
 | `GMGN_API_KEY` | kosong | Kredensial query CLI live |
 | `RUNNER_ENABLED` | `false` | Aktifkan worker runner; wajib provider `cli` dan admin IDs |
@@ -81,6 +85,8 @@ curl --fail-with-body -X POST http://localhost:3000/scan \
 
 JSON mencakup `snapshot`, `cohortSize`, `classification`, `historicalScore`, `similarWinRatePct`, `similarMedianReturn24hPct`, `metrics`, dan `warnings`. `classification`, skor dan statistik historis default `null`. Pada mode mock snapshot masih merupakan fixture berlabel jelas dengan warning demo; Telegram hanya menampilkan pemberitahuan demo. HTTP 400 untuk input salah dan 502 untuk kegagalan provider. API tidak menjalankan worker runner; worker berjalan dalam proses Telegram.
 
+API untuk EVM wajib menerima `chain`: `{"mint":"0x...","chain":"bsc"}` atau `"robinhood"`. Tidak ada penentuan jaringan dari alamat `0x` saja. Identitas histori dan cache adalah chain + CA; alamat yang sama pada dua jaringan tidak tercampur.
+
 ## Skor
 
 Mesin skor historis untuk riset tetap tersedia, tetapi scanner produksi tidak lagi memuat benchmark sintetis secara otomatis. Klasifikasi berikut hanya digunakan ketika layanan analisis secara eksplisit diberi benchmark riil dan semua metrik tersedia. Tidak ada fitur mengganti benchmark produksi lewat `.env` pada versi ini.
@@ -99,12 +105,12 @@ Runner Score adalah rule momentum terpisah (bukan skor historis/probabilitas pro
 
 - Tidak melakukan transaksi atau menggunakan private key wallet.
 - Scan mengambil `token info` dan `token security`; cache per CA selama 30 detik.
-- Worker opsional mengambil trending dan memperbarui kandidat tiap siklus. Belum ada alert transaksi atau broadcast kandidat otomatis.
+- Worker mengambil trending per jaringan dan memperbarui kandidat tiap siklus. Alert kandidat baru/2x/5x dikirim hanya ke TELEGRAM_RUNNER_CHAT_ID; tidak ada broadcast ke semua pengguna atau alert transaksi wallet.
 - Metrik yang tidak memiliki padanan semantik tetap `null`; volume bundler tidak diperlakukan sebagai kepemilikan bundler.
-- Runner menyimpan maksimal 50 kandidat, memantau 7 hari sejak deteksi. Harga puncak/drawdown adalah sampel yang teramati, bukan seluruh tick pasar.
+- Runner menyimpan maksimal 50 kandidat per jaringan, memantau 7 hari sejak deteksi. Harga puncak/drawdown adalah sampel yang teramati, bukan seluruh tick pasar.
 - PostgreSQL belum terhubung ke proses scan; belum ada migrasi atau penyimpanan laporan ke database.
 - API belum memiliki autentikasi atau rate limiting. Batasi akses server seperti pada tutorial.
-- Validasi mint masih berdasarkan pola string base58, belum verifikasi on-chain.
+- Validasi awal memakai pola base58/EVM; query provider memverifikasi data token. Pemeriksaan ini bukan audit kontrak on-chain.
 
 ## Pengembangan
 

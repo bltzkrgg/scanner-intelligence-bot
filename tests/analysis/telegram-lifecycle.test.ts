@@ -41,6 +41,7 @@ describe("Telegram menu and startup notification", () => {
 
   it("does not claim that a configured live provider has been verified", () => {
     expect(statusMessage(loadConfig({ GMGN_PROVIDER: "cli" }))).toContain("belum diverifikasi");
+    expect(statusMessage(loadConfig({}))).toContain("Jaringan: Solana, BSC, Robinhood Chain (RH)");
     expect(() => loadConfig({ TELEGRAM_STARTUP_CHAT_ID: "not-a-chat" })).toThrow();
   });
 });

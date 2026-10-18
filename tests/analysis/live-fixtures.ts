@@ -2,6 +2,7 @@ import { parseTokenInfo } from "../../packages/gmgn/src/client.js";
 
 export const mint = "So11111111111111111111111111111111111111112";
 export const otherMint = "7UAWdJjrBykopzco6bCBmMLdggaiec6bd4bTKmQqpump";
+export const evm = "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c";
 export const info = {
   address: mint, symbol: "LIVE", name: "Live Token", circulating_supply: "1000000",
   liquidity: "75000", creation_timestamp: 1700000000, holder_count: 1000,

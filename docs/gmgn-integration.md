@@ -11,7 +11,9 @@ Updated and tested on 2026-10-18 with official gmgn-cli 1.6.7 and its documented
 
 This repo does not scrape undocumented GMGN web endpoints.
 
-The live adapter uses read-only `token info` and `token security` with `--chain sol --address <mint> --raw`. Discovery uses `market trending --chain sol --interval 1h --limit 10 --raw`. Supported payloads include direct objects and successful `{code:0,data:...}` envelopes, both observed in CLI 1.6.7. Response mint must match the requested mint. Provider failures never fall back to fixture data.
+The live adapter uses read-only `token info` and `token security` with `--chain <sol|bsc|robinhood> --address <mint> --raw`. Discovery uses `market trending --chain <chain> --interval 1h --limit 10 --raw`. Supported payloads include direct objects and successful `{code:0,data:...}` envelopes, both observed in CLI 1.6.7. Response mint must match the requested mint; EVM comparisons are case-insensitive. Provider failures never fall back to fixture data.
+
+Enabled networks are explicit. Bare EVM addresses require chain selection in Telegram or a chain argument in the API. Caches and runner histories use chain + normalized address. Solana mint/freeze rules are not applied to EVM. BSC requires known honeypot status; unavailable RH honeypot coverage is disclosed in reports and alerts rather than interpreted as safe. Known adverse findings block candidates on all chains. Real-world provider permissions and plan limits still apply; enabling a network does not imply a successful live health check.
 
 Token fields are parsed with Zod. Price/windows, trades and volume come from nested `price`; concentration from `stat`/security; smart wallet counts from `wallet_tags_stat`; launched-token count from `dev`. Market cap is explicitly calculated as current price times circulating supply. Missing fields stay `null`. Insider/bundler trading-volume fractions are not converted into supply-holding percentages, sniper counts are not percentages, and rug risk scores are not developer historical rug rates. Supply locked is not treated as LP locked.
 

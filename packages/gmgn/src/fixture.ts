@@ -1,4 +1,4 @@
-import type { TokenSnapshot } from "@sti/shared";
+import { normalizeAddress, type Chain, type TokenSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "./types.js";
 
 const fixtureSnapshot: TokenSnapshot = {
@@ -27,10 +27,10 @@ const fixtureSnapshot: TokenSnapshot = {
 };
 
 export class FixtureGmgnAdapter implements GmgnAdapter {
-  async getTokenSnapshot(mint: string): Promise<TokenSnapshot> {
+  async getTokenSnapshot(mint: string, chain: Chain = "sol"): Promise<TokenSnapshot> {
     return {
       ...fixtureSnapshot,
-      mint
+      chain, mint: normalizeAddress(mint, chain)
     };
   }
 }

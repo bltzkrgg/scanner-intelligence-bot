@@ -10,6 +10,7 @@ import { registerRunnerCommands } from "../../apps/telegram/src/handlers/runner.
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { evm } from "./live-fixtures.js";
 
 const mint = "So11111111111111111111111111111111111111112";
 
@@ -42,10 +43,36 @@ function setup() {
       }
     });
   }
-  return { send, scan, reply, bot, scanner };
+  async function press(data: string) {
+    await bot.handleUpdate({ update_id: 3, callback_query: {
+      id: "callback-id", chat_instance: "chat-instance", data,
+      from: { id: 2, is_bot: false, first_name: "User" },
+      message: { message_id: 1, date: 1, chat: { id: 2, type: "private", first_name: "User" }, text: "Pilih chain" }
+    } });
+  }
+  return { send, press, scan, reply, bot, scanner };
 }
 
 describe("Telegram scan routing", () => {
+  it("asks for a network for bare EVM addresses and scans only after selection", async () => {
+    const { send, press, scan, reply } = setup();
+    await send(evm);
+    expect(scan).not.toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledWith("sendMessage", expect.objectContaining({
+      reply_markup: expect.objectContaining({ inline_keyboard: expect.any(Array) })
+    }));
+    await press(`scan:robinhood:${evm}`);
+    expect(scan).toHaveBeenCalledExactlyOnceWith(evm, "robinhood");
+    expect(reply).toHaveBeenCalledWith("answerCallbackQuery", expect.anything());
+  });
+
+  it("accepts explicit BSC and RH network labels", async () => {
+    const { send, scan } = setup();
+    await send(`/scan bsc ${evm}`, "/scan");
+    await send(`rh:${evm}`);
+    expect(scan).toHaveBeenNthCalledWith(1, evm, "bsc");
+    expect(scan).toHaveBeenNthCalledWith(2, evm, "robinhood");
+  });
   it("handles menu commands without invoking the scanner", async () => {
     const { send, scan, reply } = setup();
     await send("/help", "/help");
@@ -58,7 +85,7 @@ describe("Telegram scan routing", () => {
   it("scans a standalone mint and sends the report", async () => {
     const { send, scan, reply } = setup();
     await send(`  ${mint}  `);
-    expect(scan).toHaveBeenCalledExactlyOnceWith(mint);
+    expect(scan).toHaveBeenCalledExactlyOnceWith(mint, "sol");
     expect(reply).toHaveBeenCalledWith("sendMessage", expect.objectContaining({
       text: expect.stringContaining(mint), parse_mode: "MarkdownV2"
     }));
@@ -68,7 +95,7 @@ describe("Telegram scan routing", () => {
     for (const command of ["/scan", "/scan@scanner_bot"]) {
       const { send, scan, reply } = setup();
       await send(`${command} ${mint}`, command);
-      expect(scan).toHaveBeenCalledExactlyOnceWith(mint);
+      expect(scan).toHaveBeenCalledExactlyOnceWith(mint, "sol");
       expect(reply).toHaveBeenCalledTimes(1);
     }
   });
@@ -102,7 +129,7 @@ describe("Telegram scan routing", () => {
       reply(method, payload);
       return { ok: true, result: true } as never;
     });
-    registerRunnerCommands(isolated, monitor, scanner, loadConfig({ TELEGRAM_ADMIN_IDS: "99" }));
+    registerRunnerCommands(isolated, monitor, scanner, loadConfig({ TELEGRAM_ADMIN_IDS: "99", TELEGRAM_RUNNER_CHAT_ID: "-100456" }));
     const update = {
       update_id: 2,
       message: { message_id: 2, date: 0, chat: { id: 2, type: "private" as const, first_name: "User" },
@@ -118,5 +145,9 @@ describe("Telegram scan routing", () => {
     const restored = new RunnerMonitor(new FixtureGmgnAdapter(), file, true);
     await restored.init();
     expect(restored.active).toBe(false);
+    update.message.text = "/runner_test";
+    update.message.entities[0].length = 12;
+    await isolated.handleUpdate(update);
+    expect(reply).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ chat_id: "-100456", text: expect.stringContaining("TES NOTIFIKASI") }));
   });
 });

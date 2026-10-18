@@ -3,9 +3,9 @@ import type { Context } from "grammy";
 export async function startCommand(ctx: Context): Promise<void> {
   await ctx.reply(
     [
-      "Solana Token Intelligence Bot",
+      "Token Intelligence Bot | Solana, BSC, Robinhood Chain",
       "",
-      "Kirim alamat mint Solana langsung untuk mendapat laporan. /scan <contract_address> juga bisa digunakan.",
+      "Kirim CA langsung untuk laporan. Untuk alamat 0x, pilih BSC atau RH melalui tombol. /scan bsc <CA> dan /scan rh <CA> juga tersedia.",
       "Bot ini bukan trading bot dan tidak memberi sinyal buy/sell."
     ].join("\n")
   );
