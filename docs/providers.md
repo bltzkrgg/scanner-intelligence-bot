@@ -1,0 +1,74 @@
+# Provider Scan CA dan Runner
+
+Scan CA, refresh, API `/scan`, dan polling runner memakai adapter gabungan yang sama. Semua enrichment bersifat read-only. Tidak meminta seed phrase/private key dan tidak mengeksekusi transaksi.
+
+## Instalasi dan Konfigurasi
+
+Update repository dan dependency, lalu tambahkan key ke `.env` di server. Jangan kirim key ke chat atau commit `.env`.
+
+```bash
+git pull --ff-only
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+```dotenv
+GMGN_PROVIDER=cli
+GMGN_API_KEY=
+GMGN_HOLDER_ANALYSIS_ENABLED=true
+SOLANA_TRACKER_API_KEY=
+HELIUS_API_KEY=
+MADEONSOL_API_KEY=
+MADEONSOL_ENABLED=true
+FOMO_API_KEY=
+FOMO_ENABLED=true
+FOMO_LEADERBOARD_WINDOW=7d
+ENRICHMENT_CACHE_SEC=300
+```
+
+Key kosong menonaktifkan provider terkait. MadeOnSol dan FOMO juga bisa dimatikan dengan flag ENABLED=false tanpa menghapus key. Default analisis holder GMGN adalah false karena memerlukan query tambahan dan bobot kuota lebih tinggi. Jangan memakai demo/public key untuk menganggap data production sudah diverifikasi. Variabel `*_BASE_URL` dan `FOMO_LEADERBOARD_LIMIT` pada proposal awal tidak dipakai: origin dikunci ke layanan resmi dan limit FOMO tetap 100. Tidak perlu menambahkan variabel tersebut.
+
+`FOMO_LEADERBOARD_WINDOW`: 24h / 7d / 30d / all. `ENRICHMENT_CACHE_SEC`: 30-3600. Key provider yang salah tidak menjatuhkan scan market GMGN; laporan memberi catatan provider gagal dan nilainya belum tersedia. GMGN sendiri tetap wajib untuk market dan pemeriksaan keamanan dasar; enrichment bukan fallback market.
+
+```bash
+pnpm gmgn:check sol <CA> --discovery
+pm2 restart ecosystem.config.cjs --only scanner-telegram --update-env
+```
+
+`gmgn:check` sekarang menampilkan snapshot gabungan, sumber yang berhasil dan warning. Tidak mencetak key. Gunakan token Solana nyata; tes API berbayar mengonsumsi kuota. Cadangkan `data/runners.json` sebelum upgrade. Snapshot antrean lama mendapat enrichment null, bukan diisi memakai data terbaru.
+
+## Pemetaan
+
+| Provider | Integrasi aktif | Jaringan |
+| --- | --- | --- |
+| GMGN CLI | Market/security, KOL, smart money, Flow 5m jika tersedia; opsional top 100 holder dan kelompok pendanaan | Solana, BSC, RH |
+| Solana Tracker | Discovery utama `/search`, DEX pool berlikuiditas terbesar yang segar, creator token, bundler/sniper supply exposure | Solana |
+| Helius | RPC `getAccountInfo` jsonParsed, verifikasi mint/freeze authority dan owner program SPL/Token-2022 | Solana |
+| MadeOnSol | `/deployer-hunter/{wallet}`: jumlah deploy dan berhasil bond, rate dari dua jumlah tersebut | Solana |
+| FOMO API | Leaderboard 100 trader + top holders token; identitas trader dideduplikasi userId, handle dicocokkan case-insensitive | Solana, BSC, RH jika endpoint menjawab |
+
+Base URL dan auth: GMGN memakai CLI/API key yang sudah ada; Tracker `https://data.solanatracker.io` memakai x-api-key; Helius `https://mainnet.helius-rpc.com` memakai api-key; MadeOnSol `https://madeonsol.com/api/v1` dan FOMO `https://api.fomoapi.io` memakai Bearer. Kunci tidak diteruskan ke domain lain; redirect ditolak.
+
+Harga, volume, market cap dan fee tetap konsisten dari GMGN. DEX yang dilaporkan Tracker adalah metadata pool pilihan Tracker, bukan klaim seluruh angka GMGN adalah khusus pool tersebut. Pool Tracker harus mempunyai timestamp maksimal 15 menit; respons tidak cocok mint ditolak. Authority Helius aktif mempertahankan/memperkuat blok runner, tidak pernah menghapus blok keamanan GMGN.
+
+## Arti Field
+
+- Wallets: persentase supply maksimal lima holder teramati, bukan saldo SOL atau skor wallet.
+- Top holder teramati: jumlah persentase supply pada sampel maksimal 100, tidak mengklaim seluruh pemegang. Pool, burn, kontrak token sendiri dan addr_type tidak diketahui dikeluarkan dari daftar wallet normal.
+- Linked funding: kelompok dalam sampel yang mempunyai sumber pendanaan native sama. Ini indikasi pendanaan terkait, bukan full bubble map atau bukti satu pemilik. Data funding hilang menghasilkan N/A.
+- FOMO: `N trader terdeteksi hold (parsial)` pada window yang dipilih. Top-holder endpoint tidak menjamin seluruh trader terjangkau. Nol terdeteksi bukan bukti tidak ada Top 100 yang hold. Snapshot leaderboard lebih dari 15 menit, fallback/stale holders dan available=false ditolak; normal holder response tidak menjamin timestamp upstream.
+- Bonding rate: bonded/deployed; total deploy nol menghasilkan rate N/A, bukan 0%. Statistik dibatasi cakupan MadeOnSol dan bukan win rate.
+- Flow 5m: proporsi jumlah transaksi GMGN buys_5m/sells_5m; jika tidak tersedia, tetap Flow 1h dengan label jendela benar. Total nol menghasilkan N/A.
+- Field rug history/rate developer dihapus dari tipe, fixture, syarat kelengkapan, laporan dan metrik skor historis. Bobot metrik tersisa dinormalisasi seperti sebelumnya; skor historis lama dan baru tidak identik. Tidak diganti skor bonding yang belum dikalibrasi.
+
+## Cache dan Kegagalan
+
+Cache enrichment default 300 detik per endpoint dibagi oleh scan dan runner dalam satu proses. RPC authority memakai 30 detik. Request identik yang masih berjalan digabung; refresh eksplisit melewati cache lokal. Data provider dapat mempunyai cache upstream tersendiri. Setiap query HTTP dibatasi 8 detik, tidak retry tanpa batas. Respons 401/402/403/429 mengaktifkan cooldown 60-3600 detik sesuai Retry-After. Respons invalid/error tidak diubah menjadi nol. Warning tidak menyertakan URL, header auth, atau isi respons error. Cache hanya berlaku per proses, bukan antar proses PM2/API.
+
+## Batasan yang Belum Diimplementasikan
+
+Mengisi semua key tidak berarti semua field lengkap. Posisi likuiditas Meteora, pemeriksaan saldo on-chain wallet FOMO, full transfer cluster/bubble map, LP locked %, Dex Paid dan smart-money USD flow 1h belum tersedia pada implementasi ini. Helius saat ini hanya memverifikasi authority; FOMO hold adalah laporan provider, bukan verifikasi saldo Helius. Statistik deployer RH berbeda definisi dengan bonding curve Solana dan belum dimasukkan. ETH belum menjadi jaringan aplikasi yang aktif. Bank smart wallet user dan Discord juga belum diaktifkan oleh integrasi ini.
+
+Format berikutnya tetap menggunakan tombol GMGN / Detail Runner / Salin CA. Detail risiko scan menampilkan authority, kelompok pendanaan dan cakupan holder; laporan utama dan alert runner menampilkan ringkasan FOMO/KOL/developer bila sumber tersedia. Catatan provider gagal dan label parsial tetap ditampilkan. Tidak menambahkan probabilitas profit atau kandidat palsu.
+
+Referensi kontrak: [GMGN token](https://github.com/GMGNAI/gmgn-skills/blob/main/skills/gmgn-token/SKILL.md), [GMGN holder](https://github.com/GMGNAI/gmgn-skills/blob/main/skills/gmgn-holder-analysis/SKILL.md), [Tracker token](https://docs.solanatracker.io/data-api/tokens/get-token-information), [Tracker search](https://docs.solanatracker.io/data-api/search/token-search), [Helius RPC](https://www.helius.dev/docs/api-reference/rpc/http/getaccountinfo), [MadeOnSol](https://madeonsol.com/api-docs), [FOMO](https://fomoapi.io/docs).

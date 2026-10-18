@@ -378,3 +378,7 @@ Jangan menjalankan proses terminal dan service systemd dengan token bot yang sam
 | Build gagal pada Node lama | Gunakan versi kompatibel dan install dependency ulang |
 
 Instalasi Telegram selesai ketika `/start` dibalas dan satu CA Solana langsung menghasilkan satu laporan. Jika API dipasang, pastikan contoh request juga mengembalikan HTTP 200. Data pasar live dan benchmark riil masih perlu divalidasi.
+
+## Integrasi Data Tambahan
+
+Untuk menambahkan Solana Tracker, Helius, MadeOnSol dan FOMO pada scan CA serta runner, ikuti [konfigurasi multi-provider](providers.md). Key kosong berarti provider tidak diaktifkan. Tidak perlu mengganti konfigurasi token/chat Telegram.

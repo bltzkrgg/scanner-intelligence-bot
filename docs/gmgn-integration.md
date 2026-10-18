@@ -15,7 +15,7 @@ The live adapter uses read-only `token info` and `token security` with `--chain 
 
 Enabled networks are explicit. Bare EVM addresses require chain selection in Telegram or a chain argument in the API. Caches and runner histories use chain + normalized address. Solana mint/freeze rules are not applied to EVM. BSC requires known honeypot status; unavailable RH honeypot coverage is disclosed in reports and alerts rather than interpreted as safe. Known adverse findings block candidates on all chains. Real-world provider permissions and plan limits still apply; enabling a network does not imply a successful live health check.
 
-Token fields are parsed with Zod. Price/windows, trades and volume come from nested `price`; concentration from `stat`/security; smart wallet counts from `wallet_tags_stat`; launched-token count from `dev`. Market cap is explicitly calculated as current price times circulating supply. Missing fields stay `null`. Insider/bundler trading-volume fractions are not converted into supply-holding percentages, sniper counts are not percentages, and rug risk scores are not developer historical rug rates. Supply locked is not treated as LP locked.
+Token fields are parsed with Zod. Price/windows, trades and volume come from nested `price`; concentration from `stat`/security; smart wallet counts from `wallet_tags_stat`; launched-token count from `dev`. Market cap is explicitly calculated as current price times circulating supply. Missing fields stay `null`. Insider/bundler trading-volume fractions are not converted into supply-holding percentages and sniper counts are not percentages. Supply locked is not treated as LP locked. See [multi-provider enrichment](providers.md) for optional supply exposure, developer bonding, authorities and FOMO data.
 
 Historical scores/classification and similar-token statistics default to `null`: no synthetic benchmark is implicitly used. Runner Score is an experimental market rule, not a calibrated historical score. Its data, persistence and activation are documented in [live-and-runner.md](live-and-runner.md).
 
@@ -27,7 +27,7 @@ The default adapter remains fixture-backed (`GMGN_PROVIDER=mock`) for developmen
 - Market quality: market cap, liquidity, volume, buy/sell counts, price change windows, liquidity lock/burn status.
 - Distribution: top holder concentration, top holder list, holder count.
 - Risk actors: bundler exposure, insider exposure, sniper exposure.
-- Developer: deployer wallet, created token history, historical outcomes/rug rate, developer holdings.
+- Developer: deployer wallet, token count and bonding history from MadeOnSol; developer holdings remain separate.
 - Smart money: smart money holder count, net flows, wallet-level activity and performance where available.
 - K-line/OHLCV: at least 1m/5m/1h candles for outcome labeling and momentum research.
 

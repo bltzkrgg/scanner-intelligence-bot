@@ -40,7 +40,7 @@ function isComplete(snapshot: MarketSnapshot): snapshot is TokenSnapshot {
   const fields: Array<keyof TokenSnapshot> = [
     "marketCapUsd", "liquidityUsd", "ageMinutes", "volume24hUsd", "buys1h", "sells1h",
     "top10HolderPct", "bundlerPct", "insiderPct", "sniperPct", "developerTokenCount",
-    "developerRugRatePct", "smartMoneyHolderCount", "smartMoneyNetFlowUsd1h",
+    "smartMoneyHolderCount", "smartMoneyNetFlowUsd1h",
     "priceChange1hPct", "priceChange6hPct", "liquidityLockedPct"
   ];
   return fields.every((field) => typeof snapshot[field] === "number" && Number.isFinite(snapshot[field]));

@@ -13,7 +13,7 @@ describe("GMGN live mapping", () => {
     expect(snapshot.priceChange1hPct).toBe(25);
     expect(snapshot.sniperPct).toBeNull();
     expect(snapshot.bundlerPct).toBeNull();
-    expect(snapshot.developerRugRatePct).toBeNull();
+    expect(snapshot).not.toHaveProperty("developerRugRatePct");
     const enveloped = parseTokenInfo({ code: 0, data: info }, mint, { code: 0, data: security });
     expect(enveloped.smartMoneyHolderCount).toBe(snapshot.smartMoneyHolderCount);
     expect(enveloped.insiderPct).toBe(4);

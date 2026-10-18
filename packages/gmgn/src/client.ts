@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
-import { normalizeAddress, tokenAddressSchema, type Chain, type MarketSnapshot } from "@sti/shared";
+import { normalizeAddress, tokenAddressSchema, tokenIntelligenceSchema, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "./types.js";
 
 const execFileAsync = promisify(execFile);
@@ -25,12 +25,13 @@ const tokenSchema = z.object({
   holder_count: count,
   price: z.object({
     price: positive, price_1h: positive, price_6h: positive,
-    volume_24h: positive, volume_5m: positive, swaps_5m: count, buys_1h: count, sells_1h: count
+    volume_24h: positive, volume_5m: positive, swaps_5m: count, buys_1h: count, sells_1h: count,
+    buys_5m: count, sells_5m: count
   }).prefault({}),
   pool: z.object({ liquidity: positive }).prefault({}),
   stat: z.object({ top_10_holder_rate: ratio }).prefault({}),
-  dev: z.object({ creator_open_count: count }).prefault({}),
-  wallet_tags_stat: z.object({ smart_wallets: count }).prefault({})
+  dev: z.object({ creator_open_count: count, creator_address: tokenAddressSchema.nullable().optional() }).prefault({}),
+  wallet_tags_stat: z.object({ smart_wallets: count, renowned_wallets: count }).prefault({})
 });
 const securitySchema = z.object({
   top_10_holder_rate: ratio, suspected_insider_hold_rate: ratio,
@@ -94,9 +95,16 @@ export function parseTokenInfo(input: unknown, mint: string, security?: unknown,
     top10HolderPct: pct(safety?.top_10_holder_rate ?? raw.stat.top_10_holder_rate),
     insiderPct: pct(safety?.suspected_insider_hold_rate),
     // Volume ratios and wallet counts are not supply exposure percentages.
-    bundlerPct: null, sniperPct: null, developerRugRatePct: null,
+    bundlerPct: null, sniperPct: null,
     developerTokenCount: raw.dev.creator_open_count,
     smartMoneyHolderCount: raw.wallet_tags_stat.smart_wallets,
+    intelligence: tokenIntelligenceSchema.parse({
+      deployer: raw.dev.creator_address ?? null, kolHolderCount: raw.wallet_tags_stat.renowned_wallets,
+      buys5m: raw.price.buys_5m, sells5m: raw.price.sells_5m,
+      mintAuthorityRevoked: chain === "sol" ? safety?.renounced_mint ?? null : null,
+      freezeAuthorityRevoked: chain === "sol" ? safety?.renounced_freeze_account ?? null : null,
+      sources: ["GMGN"]
+    }),
     smartMoneyNetFlowUsd1h: null, liquidityLockedPct: null,
     priceChange1hPct: change(raw.price.price_1h), priceChange6hPct: change(raw.price.price_6h),
     source: "gmgn-cli", observedAt: new Date(now).toISOString(), dataWarnings: warnings, runnerBlockReason
@@ -120,7 +128,8 @@ export class CliGmgnAdapter implements GmgnAdapter {
   private cache = new Map<string, { until: number; value: MarketSnapshot }>();
   private pending = new Map<string, Promise<MarketSnapshot>>();
 
-  constructor(private readonly run: CliRunner = runCli, private readonly spacingMs = 1200) {}
+  constructor(private readonly run: CliRunner = runCli, private readonly spacingMs = 1200,
+    private readonly holderAnalysis = false) {}
 
   private request(args: string[]): Promise<unknown> {
     const task = this.queue.then(async () => {
@@ -167,6 +176,11 @@ export class CliGmgnAdapter implements GmgnAdapter {
       security = securitySchema.parse(await this.request(["token", "security", "--chain", chain, "--address", mint, "--raw"]));
     } catch { security = undefined; }
     const snapshot = parseTokenInfo(raw, mint, security, Date.now(), chain);
+    if (this.holderAnalysis) {
+      try {
+        applyHolderAnalysis(snapshot, await this.request(["token", "holders", "--chain", chain, "--address", mint, "--limit", "100", "--raw"]), chain);
+      } catch { snapshot.dataWarnings!.push("GMGN: analisis top holder belum tersedia."); }
+    }
     if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value!);
     this.cache.set(`${chain}:${mint}`, { until: Date.now() + 10_000, value: snapshot });
     return snapshot;
@@ -176,6 +190,33 @@ export class CliGmgnAdapter implements GmgnAdapter {
     const raw = await this.request(["market", "trending", "--chain", chain, "--interval", "5m", "--limit", "10", "--raw"]);
     return parseTrending(raw, chain);
   }
+}
+
+export function applyHolderAnalysis(s: MarketSnapshot, input: unknown, chain: Chain): void {
+  const holder = z.object({ address: tokenAddressSchema, amount_percentage: ratio,
+    addr_type: z.number().int().optional(),
+    native_transfer: z.object({ from_address: tokenAddressSchema.nullable().optional() }).nullable().optional()
+  });
+  const data = z.union([z.array(holder), z.object({ list: z.array(holder) })]).parse(unwrapGmgn(input));
+  const rows = Array.isArray(data) ? data : data.list;
+  if (!rows.length || rows.length > 100) throw new Error("Empty/oversized holders");
+  const unique = [...new Map(rows.map((r) => [normalizeAddress(r.address, chain), r])).values()];
+  const observed = unique.filter((r) => r.addr_type === 0 && normalizeAddress(r.address, chain) !== s.mint && r.amount_percentage != null);
+  const sum = observed.reduce((n, r) => n + r.amount_percentage! * 100, 0);
+  if (sum > 100.001 || !observed.length) throw new Error("Invalid holder coverage");
+  const groups = new Map<string, { count: number; pct: number }>();
+  for (const row of observed) {
+    const from = row.native_transfer?.from_address;
+    if (!from) continue;
+    const key = normalizeAddress(from, chain);
+    const group = groups.get(key) ?? { count: 0, pct: 0 };
+    group.count++; group.pct += row.amount_percentage! * 100; groups.set(key, group);
+  }
+  const intel = s.intelligence ??= tokenIntelligenceSchema.parse({ sources: ["GMGN"] });
+  intel.topHolderPcts = observed.map((r) => r.amount_percentage! * 100).sort((a, b) => b - a);
+  intel.top100ObservedPct = Math.min(100, sum);
+  intel.linkedFundingPct = groups.size ? Math.min(100, Math.max(0, ...[...groups.values()].filter((g) => g.count >= 2).map((g) => g.pct))) : null;
+  // Observed coverage is not a full-supply audit or proof of common ownership.
 }
 
 export function parseTrending(raw: unknown, chain: Chain = "sol"): string[] {

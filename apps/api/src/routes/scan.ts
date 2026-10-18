@@ -11,7 +11,7 @@ const requestSchema = z.object({
 
 export async function registerScanRoute(app: FastifyInstance): Promise<void> {
   const config = loadConfig();
-  const scanner = new IntelligenceScanner(createGmgnAdapter(config.gmgnProvider), undefined, config.enabledChains);
+  const scanner = new IntelligenceScanner(createGmgnAdapter(config.gmgnProvider, config), undefined, config.enabledChains);
 
   app.post("/scan", async (request, reply) => {
     const body = requestSchema.safeParse(request.body);

@@ -54,7 +54,7 @@ describe("Telegram report", () => {
     const risk = formatTelegramRisk(result);
     expect(risk).toContain("Insider holdings: belum tersedia");
     expect(risk).toContain("Bundler exposure: belum tersedia");
-    expect(risk).toContain("Developer rug rate: belum tersedia");
+    expect(risk).not.toContain("Developer rug rate");
   });
 
   it("escapes provider-controlled text in all views and limits long warning payloads", async () => {

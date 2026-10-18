@@ -36,10 +36,10 @@ Baris Data event, Ref, penjelasan N/A dan disclaimer umum dihapus dari pesan. Ti
 
 ## Sumber Data
 
-- Flow 1h dihitung dari proporsi jumlah transaksi beli/jual satu jam pada snapshot, bukan volume USD atau flow lima menit. Persentase dibulatkan ke bilangan bulat dan totalnya 100%. Jika salah satu jumlah tidak tersedia atau total transaksi nol, hasilnya N/A.
+- Flow 5m memakai proporsi jumlah transaksi lima menit jika tersedia dari GMGN; fallback Flow 1h memakai satu jam dengan label eksplisit. Ini bukan volume USD. Persentase dibulatkan dan totalnya 100%. Jika salah satu jumlah tidak tersedia atau total nol, hasilnya N/A.
 - Top 10 adalah persentase kepemilikan supply.
-- Wallets dan Dex Paid masih N/A karena rincian wallet dan status DEX paid belum tersimpan pada snapshot runner. Jumlah smart money holder tidak dipakai sebagai pengganti rincian wallet.
-- Subjudul memakai jaringan dan GMGN. Nama token panjang/nama DEX belum tersimpan pada snapshot; bot tidak mengarang PumpSwap atau nama pool dari simbol token.
+- Wallets memakai persentase supply lima holder teramati jika analisis GMGN diaktifkan. Dex Paid tetap N/A. Jumlah smart money holder tidak dipakai sebagai pengganti rincian wallet.
+- Subjudul memakai nama token dan DEX dari enrichment jika tersedia; fallback jaringan dan GMGN. Bot tidak mengarang nama DEX dari simbol token. Bagian INTELLIGENCE menampilkan KOL, FOMO parsial, developer bonded dan kelompok pendanaan jika enrichment tersedia; lihat [cakupan provider](providers.md).
 - Umur adalah umur DEX/migration yang tersedia, bukan umur pembuatan token. Jika tidak tersedia, umur tidak ditampilkan.
 - Angka pasar memakai K/M/B/T; fees dibulatkan maksimal dua desimal hanya untuk tampilan, kecuali fees positif di bawah 0.01 memakai hingga delapan desimal. Nilai mentah dan filter tidak berubah.
 - Nilai kosong memakai N/A tanpa unit; nol yang diketahui tetap nol. Unit fees harus cocok dengan jaringan.

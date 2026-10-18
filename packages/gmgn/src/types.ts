@@ -17,7 +17,6 @@ export const gmgnTokenResponseSchema = z
     insiderPct: z.coerce.number().min(0).max(100),
     sniperPct: z.coerce.number().min(0).max(100),
     developerTokenCount: z.coerce.number().int().nonnegative(),
-    developerRugRatePct: z.coerce.number().min(0).max(100),
     smartMoneyHolderCount: z.coerce.number().int().nonnegative(),
     smartMoneyNetFlowUsd1h: z.coerce.number(),
     priceChange1hPct: z.coerce.number(),

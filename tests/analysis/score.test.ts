@@ -20,7 +20,6 @@ describe("analyzeToken", () => {
       insiderPct: 4,
       sniperPct: 7,
       developerTokenCount: 3,
-      developerRugRatePct: 9,
       smartMoneyHolderCount: 10,
       smartMoneyNetFlowUsd1h: 36_000,
       priceChange1hPct: 17,
@@ -47,5 +46,14 @@ describe("analyzeToken", () => {
 
     expect(result.classification).toBe("RISIKO TINGGI");
     expect(result.warnings.length).toBeGreaterThan(0);
+  });
+
+  it("ignores and removes the retired developer metric from legacy datasets", () => {
+    const snapshot = (benchmark as BenchmarkToken[])[0];
+    const a = analyzeToken({ ...snapshot, developerRugRatePct: 0 } as TokenSnapshot, benchmark as BenchmarkToken[]);
+    const b = analyzeToken({ ...snapshot, developerRugRatePct: 100 } as TokenSnapshot, benchmark as BenchmarkToken[]);
+    expect(a.historicalScore).toBe(b.historicalScore);
+    expect(a.snapshot).not.toHaveProperty("developerRugRatePct");
+    expect(a.metrics.some((m) => m.name === "Riwayat developer")).toBe(false);
   });
 });

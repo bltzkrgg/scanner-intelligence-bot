@@ -3,6 +3,7 @@ import type { RunnerEvent } from "./runner.js";
 
 export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): string {
   const r = event.record;
+  const i = r.intelligence;
   const network = r.chain === "sol" ? "SOLANA" : r.chain === "bsc" ? "BSC" : "ROBINHOOD";
   const badge = r.chain === "sol" ? "🟣" : r.chain === "bsc" ? "🟡" : "🟢";
   const short = r.chain === "robinhood" ? "RH" : network;
@@ -18,14 +19,26 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
     ["Fees", hasFees ? `${number(r.totalFeesNative, r.totalFeesNative! > 0 && r.totalFeesNative! < 0.01 ? 8 : 2)} ${native}` : "N/A"],
     ["Liquidity", usd(r.liquidityUsd, true)]
   ]);
-  const totalSwaps = present(r.buys1h) && present(r.sells1h) ? r.buys1h + r.sells1h : 0;
-  const buyPct = totalSwaps > 0 ? Math.round(r.buys1h! / totalSwaps * 100) : null;
+  const has5m = present(i?.buys5m) && present(i?.sells5m);
+  const buys = has5m ? i!.buys5m : r.buys1h;
+  const sells = has5m ? i!.sells5m : r.sells1h;
+  const totalSwaps = present(buys) && present(sells) ? buys + sells : 0;
+  const buyPct = totalSwaps > 0 ? Math.round(buys! / totalSwaps * 100) : null;
   const activity = block("ACTIVITY", [
-    ["Flow 1h", buyPct !== null ? `Buy ${buyPct}% • Sell ${100 - buyPct}%` : "N/A"],
+    [has5m ? "Flow 5m" : "Flow 1h", buyPct !== null ? `Buy ${buyPct}% • Sell ${100 - buyPct}%` : "N/A"],
     ["Top 10", present(r.top10HolderPct) ? `${number(r.top10HolderPct)}%` : "N/A"],
-    ["Wallets", "N/A"],
+    ["Wallets", i?.topHolderPcts.length ? i.topHolderPcts.slice(0, 5).map((p) => `${number(p)}%`).join(" • ") : "N/A"],
     ["Dex Paid", "N/A"]
   ]);
+  const intelligence = i && (i.sources.some((s) => s !== "GMGN") || i.topHolderPcts.length || present(i.kolHolderCount)) ? block("INTELLIGENCE", [
+    ["Smart Money", number(r.smartMoneyHolderCount, 0)],
+    ["KOL", number(i.kolHolderCount, 0)],
+    ["FOMO Top 100", i.fomo ? `${i.fomo.matched} terdeteksi • ${i.fomo.window} • parsial` : "N/A"],
+    ["Bundler", present(r.bundlerPct) ? `${number(r.bundlerPct)}% supply` : "N/A"],
+    ["Sniper", present(r.sniperPct) ? `${number(r.sniperPct)}% supply` : "N/A"],
+    ["Dev bonded", i.developerBondedCount !== null ? `${number(i.developerBondedCount, 0)} • ${number(i.developerBondRatePct)}%` : "N/A"],
+    ["Linked funding", present(i.linkedFundingPct) ? `${number(i.linkedFundingPct)}% teramati` : "N/A"]
+  ]) : null;
   let status: string;
   let detail: string;
   if (event.kind === "2x" || event.kind === "5x") {
@@ -48,9 +61,9 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
   return [
     `<b>${badge} ${network} TOKEN RUNNER</b>`, "",
     `<b>💊 ${escapeHtml(clip(r.symbol, 40))}${present(r.dexAgeMinutes) ? ` • ${number(r.dexAgeMinutes)}m` : ""}</b>`,
-    escapeHtml(`${CHAIN_NAMES[r.chain]} | GMGN`), "",
+    escapeHtml(`${r.name ? `${clip(r.name, 80)} | ` : ""}${i?.dex ?? `${CHAIN_NAMES[r.chain]} | GMGN`}`), "",
     ...(delayed ? ["<b>⚠️ ALERT TERTUNDA</b>", "Data saat event, bukan harga terbaru.", ""] : []),
-    market, "", activity, "", "┌ <b>STATUS</b>",
+    market, "", activity, "", ...(intelligence ? [intelligence, ""] : []), "┌ <b>STATUS</b>",
     `└ <b>${escapeHtml(status)}</b>`, ...detail.split("\n").map((line) => `   ${escapeHtml(line)}`),
     ...(legacy ? ["Deteksi berasal dari rule lama; bukan kelulusan filter saat ini."]
       : event.kind === "candidate" ? []

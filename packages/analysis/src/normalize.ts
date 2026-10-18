@@ -1,15 +1,16 @@
 import type { TokenSnapshot } from "@sti/shared";
 
 export function normalizeSnapshot(snapshot: TokenSnapshot): TokenSnapshot {
+  // Old imported datasets may still contain the retired metric; never re-emit it.
+  const { developerRugRatePct: _retired, ...current } = snapshot as TokenSnapshot & { developerRugRatePct?: unknown };
   return {
-    ...snapshot,
+    ...current,
     symbol: snapshot.symbol.trim().toUpperCase(),
     name: snapshot.name.trim(),
     top10HolderPct: clampPct(snapshot.top10HolderPct),
     bundlerPct: clampPct(snapshot.bundlerPct),
     insiderPct: clampPct(snapshot.insiderPct),
     sniperPct: clampPct(snapshot.sniperPct),
-    developerRugRatePct: clampPct(snapshot.developerRugRatePct),
     liquidityLockedPct: clampPct(snapshot.liquidityLockedPct)
   };
 }

@@ -34,7 +34,6 @@ export type TokenSnapshot = {
   insiderPct: number;
   sniperPct: number;
   developerTokenCount: number;
-  developerRugRatePct: number;
   smartMoneyHolderCount: number;
   smartMoneyNetFlowUsd1h: number;
   priceChange1hPct: number;
@@ -65,7 +64,31 @@ export type MarketSnapshot = Omit<TokenSnapshot, NumericSnapshotField> & {
   totalFeesNative?: number | null;
   feesNativeSymbol?: "SOL" | "BNB" | "ETH";
   dexAgeMinutes?: number | null;
+  intelligence?: TokenIntelligence;
 };
+
+export const tokenIntelligenceSchema = z.object({
+  dex: z.string().max(100).nullable().default(null),
+  deployer: z.string().nullable().default(null),
+  developerBondedCount: z.number().int().nonnegative().nullable().default(null),
+  developerBondRatePct: z.number().min(0).max(100).nullable().default(null),
+  mintAuthorityRevoked: z.boolean().nullable().default(null),
+  freezeAuthorityRevoked: z.boolean().nullable().default(null),
+  kolHolderCount: z.number().int().nonnegative().nullable().default(null),
+  buys5m: z.number().int().nonnegative().nullable().default(null),
+  sells5m: z.number().int().nonnegative().nullable().default(null),
+  topHolderPcts: z.array(z.number().min(0).max(100)).max(100).default([]),
+  top100ObservedPct: z.number().min(0).max(100).nullable().default(null),
+  linkedFundingPct: z.number().min(0).max(100).nullable().default(null),
+  fomo: z.object({
+    window: z.enum(["24h", "7d", "30d", "all"]),
+    matched: z.number().int().nonnegative(), checked: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(), complete: z.boolean(),
+    capturedAt: z.string().datetime()
+  }).nullable().default(null),
+  sources: z.array(z.string()).default([])
+});
+export type TokenIntelligence = z.infer<typeof tokenIntelligenceSchema>;
 
 export type MetricScore = {
   name: string;

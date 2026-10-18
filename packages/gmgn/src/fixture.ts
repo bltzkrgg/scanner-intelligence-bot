@@ -16,7 +16,6 @@ const fixtureSnapshot: TokenSnapshot = {
   insiderPct: 5,
   sniperPct: 8,
   developerTokenCount: 4,
-  developerRugRatePct: 15,
   smartMoneyHolderCount: 9,
   smartMoneyNetFlowUsd1h: 34_000,
   priceChange1hPct: 18,

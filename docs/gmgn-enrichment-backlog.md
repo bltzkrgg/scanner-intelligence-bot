@@ -1,12 +1,12 @@
 # Catatan Pengayaan Data GMGN
 
-Status: kebutuhan dicatat, belum seluruhnya diimplementasikan. Parser saat ini mengambil insider dari `token security.suspected_insider_hold_rate` jika tersedia; bundler/sniper exposure supply, developer rug rate, smart-money net flow 1h dan persentase LP terkunci masih `null`.
+Status: integrasi multi-provider tersedia; lihat [panduan provider](providers.md). Insider berasal dari GMGN jika tersedia. Bundler/sniper dapat diperkaya Solana Tracker; smart-money net flow 1h dan persentase LP terkunci belum diimplementasikan dan tetap `null`.
 
 | Kebutuhan | Sumber yang perlu diverifikasi | Batasan implementasi |
 | --- | --- | --- |
 | Insider holdings | `token security`, holder berlabel `rat_trader` | Bedakan label dugaan provider dari identitas insider yang terbukti |
 | Bundler/sniper exposure | `token holders` dengan label `bundler` / `sniper` | Hitung kepemilikan supply, bukan rasio volume atau jumlah wallet; hindari double-count antar label |
-| Riwayat rug developer | `token created-tokens`, identitas developer, histori token dan likuiditas | Definisikan rug secara eksplisit; laporkan sampel/cakupan, jangan mengubah rug ratio token menjadi rug rate developer |
+| Histori developer | MadeOnSol `/deployer-hunter/{wallet}` | Jumlah deploy dan berhasil bond; bonding rate dihitung dari jumlah, bukan dianggap probabilitas profit |
 | Smart money flow 1h | Aktivitas wallet/trade bertimestamp dari provider | Hitung buy/sell USD hanya pada rolling 1h; cumulative netflow bukan flow 1h, transfer bukan otomatis pembelian |
 | Likuiditas terkunci | `token security.lock_summary` jika tersedia | Verifikasi nominal, denominator LP/pool, expiry, dan cakupan sebelum menerbitkan persen |
 

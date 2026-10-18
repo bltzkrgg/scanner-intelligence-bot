@@ -1,5 +1,4 @@
 export * from "./cohort.js";
-export * from "./developer.js";
 export * from "./distribution.js";
 export * from "./momentum.js";
 export * from "./normalize.js";

@@ -2,7 +2,6 @@ import type { BenchmarkToken, IntelligenceResult, MetricScore, TokenSnapshot } f
 import { buildCohort, findSimilarTokens } from "@sti/benchmark";
 import { normalizeSnapshot } from "./normalize.js";
 import { scoreDistribution } from "./distribution.js";
-import { scoreDeveloper } from "./developer.js";
 import { scoreSmartMoney } from "./smartMoney.js";
 import { scoreMomentum } from "./momentum.js";
 import { buildWarnings, classifyScore } from "./risk.js";
@@ -13,7 +12,6 @@ export function analyzeToken(snapshotInput: TokenSnapshot, benchmark: BenchmarkT
   const effectiveCohort = cohort.length >= 5 ? cohort : benchmark;
   const metrics: MetricScore[] = [
     ...scoreDistribution(snapshot, effectiveCohort),
-    ...scoreDeveloper(snapshot, effectiveCohort),
     ...scoreSmartMoney(snapshot, effectiveCohort),
     ...scoreMomentum(snapshot, effectiveCohort),
     {

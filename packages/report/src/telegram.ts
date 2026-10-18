@@ -1,4 +1,4 @@
-import { CHAIN_NAMES, type IntelligenceResult } from "@sti/shared";
+import { CHAIN_NAMES, type IntelligenceResult, type MarketSnapshot } from "@sti/shared";
 import { assessRunner, evaluateTokenAlert, type AlertConfig, type RunnerRecord } from "@sti/analysis";
 
 export type TelegramReportContext = {
@@ -12,7 +12,7 @@ export function formatTelegramReport(result: IntelligenceResult, context: Telegr
   const s = result.snapshot;
   if (s.source === "fixture") return demoReport(result);
   const runner = assessRunner(s);
-  const missingRisk = [s.insiderPct, s.bundlerPct, s.sniperPct, s.developerRugRatePct,
+  const missingRisk = [s.insiderPct, s.bundlerPct, s.sniperPct,
     s.smartMoneyNetFlowUsd1h, s.liquidityLockedPct].some((v) => v == null);
   return [
     heading(result), "", `\`${escapeMarkdown(s.mint)}\``, "",
@@ -24,6 +24,7 @@ export function formatTelegramReport(result: IntelligenceResult, context: Telegr
     `1j: *${escapeMarkdown(percent(s.priceChange1hPct, true))}* \\| 6j: *${escapeMarkdown(percent(s.priceChange6hPct, true))}*`,
     escapeMarkdown(`Buy/Sell 1j: ${number(s.buys1h, 0)} / ${number(s.sells1h, 0)}`),
     escapeMarkdown(`Holder: ${number(s.holderCount, 0)} | Smart money: ${number(s.smartMoneyHolderCount, 0)}`), "",
+    ...intelligenceSummary(s),
     `*Runner Score: ${runner.score === null ? "belum tersedia" : `${runner.score}/100`}*`,
     escapeMarkdown(runner.candidate ? "Memenuhi rule skor eksperimen, bukan probabilitas profit."
       : "Belum memenuhi rule skor eksperimen / data belum lengkap."),
@@ -50,10 +51,10 @@ export function formatTelegramRisk(result: IntelligenceResult): string {
     escapeMarkdown(`Sniper exposure: ${percent(s.sniperPct)}`), "",
     "*Developer & Smart Money*",
     escapeMarkdown(`Token diluncurkan developer: ${number(s.developerTokenCount, 0)}`),
-    escapeMarkdown(`Developer rug rate: ${percent(s.developerRugRatePct)}`),
     escapeMarkdown(`Smart money holder (label GMGN): ${number(s.smartMoneyHolderCount, 0)}`),
     escapeMarkdown(`Smart money net flow 1j: ${usd(s.smartMoneyNetFlowUsd1h)}`),
     escapeMarkdown(`Likuiditas terkunci: ${percent(s.liquidityLockedPct)}`), "",
+    ...intelligenceSummary(s, true),
     "*Catatan*",
     ...[...new Set([...(s.runnerBlockReason ? [s.runnerBlockReason] : []), ...result.warnings])]
       .slice(0, 8).map((warning) => escapeMarkdown(clip(warning, 180))),
@@ -61,6 +62,27 @@ export function formatTelegramRisk(result: IntelligenceResult): string {
     `_${escapeMarkdown(`Data ${source(s.source)} | ${wib(s.observedAt)}`)}_`,
     "_Bukan rekomendasi beli/jual\\._"
   ].join("\n");
+}
+
+function intelligenceSummary(s: MarketSnapshot, detailed = false): string[] {
+  const i = s.intelligence;
+  if (!i) return [];
+  const authority = (v: boolean | null) => v === null ? "belum tersedia" : v ? "Dicabut" : "AKTIF";
+  const lines = [
+    `DEX: ${i.dex ?? "belum tersedia"}`,
+    `KOL holder: ${number(i.kolHolderCount, 0)}`,
+    `Bundler: ${percent(s.bundlerPct)} | Sniper: ${percent(s.sniperPct)}`,
+    i.fomo ? `FOMO Top 100 (${i.fomo.window}): ${i.fomo.matched} trader terdeteksi hold (parsial)` : "FOMO Top 100: belum tersedia",
+    `Developer: ${number(s.developerTokenCount, 0)} token | Berhasil bond: ${number(i.developerBondedCount, 0)} (${percent(i.developerBondRatePct)})`,
+    ...(detailed ? [
+      `Mint authority: ${authority(i.mintAuthorityRevoked)} | Freeze authority: ${authority(i.freezeAuthorityRevoked)}`,
+      `Holder teramati (maks. 100 wallet): ${percent(i.top100ObservedPct)} supply`,
+      `Kelompok pendanaan terbesar teramati: ${percent(i.linkedFundingPct)} supply; bukan bukti satu pemilik.`,
+      `Top wallet: ${i.topHolderPcts.slice(0, 5).map((p) => percent(p)).join(" • ") || "belum tersedia"}`,
+      `Sumber enrichment: ${i.sources.join(", ") || "belum tersedia"}`
+    ] : [])
+  ];
+  return ["*Intelligence*", ...lines.map(escapeMarkdown), ""];
 }
 
 export function formatTelegramRunner(result: IntelligenceResult, context: TelegramReportContext = {}): string {

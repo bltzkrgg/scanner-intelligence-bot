@@ -22,7 +22,7 @@ if (config.runnerEnabled && config.gmgnProvider !== "cli") {
 if (config.runnerEnabled && config.telegramAdminIds.length === 0) {
   throw new Error("RUNNER_ENABLED=true requires TELEGRAM_ADMIN_IDS");
 }
-const adapter = createGmgnAdapter(config.gmgnProvider);
+const adapter = createGmgnAdapter(config.gmgnProvider, config);
 const scanner = new IntelligenceScanner(adapter, undefined, config.enabledChains);
 const runner = new RunnerMonitor(adapter, config.runnerStateFile, config.runnerEnabled, config.enabledChains);
 await runner.init();

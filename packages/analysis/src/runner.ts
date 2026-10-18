@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
-import { chainSchema, normalizeAddress, tokenAddressSchema, CHAIN_NAMES, type Chain, type MarketSnapshot } from "@sti/shared";
+import { chainSchema, normalizeAddress, tokenAddressSchema, tokenIntelligenceSchema, CHAIN_NAMES, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "@sti/gmgn";
 import { alertConfigSchema, defaultAlertConfig, alertsEnabled, alertInterval, maxAlertsPerScan,
   evaluateTokenAlert, evaluateVolumeSpike, volumeSpikeConfig, updateAlertConfig } from "./alert-config.js";
@@ -58,7 +58,12 @@ const recordSchema = z.object({
   buys1h: z.number().int().nonnegative().nullable().default(null),
   sells1h: z.number().int().nonnegative().nullable().default(null),
   top10HolderPct: z.number().min(0).max(100).nullable().default(null),
+  bundlerPct: z.number().min(0).max(100).nullable().default(null),
+  sniperPct: z.number().min(0).max(100).nullable().default(null),
+  insiderPct: z.number().min(0).max(100).nullable().default(null),
   smartMoneyHolderCount: z.number().int().nonnegative().nullable().default(null),
+  name: z.string().max(200).default(""),
+  intelligence: tokenIntelligenceSchema.nullable().default(null),
   baselineVolume5mUsd: z.number().nonnegative().nullable().default(null),
   spikeMultiplier: z.number().nonnegative().nullable().default(null),
   qualification: z.enum(["legacy", "configured", "spike"]).default("legacy"),
@@ -190,7 +195,9 @@ export class RunnerMonitor {
         next.volumeBaselines = next.volumeBaselines.slice(0, 500);
       }
       const details = {
+        name: s.name, intelligence: s.intelligence ?? null,
         buys1h: s.buys1h, sells1h: s.sells1h, top10HolderPct: s.top10HolderPct,
+        bundlerPct: s.bundlerPct, sniperPct: s.sniperPct, insiderPct: s.insiderPct,
         smartMoneyHolderCount: s.smartMoneyHolderCount,
         volume5mUsd: s.volume5mUsd ?? null, swaps5m: s.swaps5m ?? null,
         totalFeesNative: s.totalFeesNative ?? null, feesNativeSymbol: s.feesNativeSymbol ?? null,
