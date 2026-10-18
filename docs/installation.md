@@ -27,7 +27,7 @@ Jika tools sudah tersedia, ikuti langkah 2-4, buat token melalui langkah 6, lalu
 
 ## 1. Pasang Tools
 
-Siapkan Git, Node.js, dan Python 3.10 atau lebih baru. Aplikasi membutuhkan Node minimal 20.12; untuk instalasi baru gunakan Node 22 atau 24 dan pastikan memenuhi persyaratan pnpm.
+Siapkan Git, Node.js 24, dan Python 3.10 atau lebih baru. Walaupun kode aplikasi mencantumkan Node minimal 20.12, toolchain pnpm 11 membutuhkan Node minimal 22.13. Panduan ini menggunakan Node 24 agar keduanya terpenuhi. Lihat [kompatibilitas pnpm](https://pnpm.io/installation#compatibility).
 
 ### macOS
 
@@ -35,7 +35,7 @@ Siapkan Git, Node.js, dan Python 3.10 atau lebih baru. Aplikasi membutuhkan Node
 xcode-select --install
 ```
 
-Pasang Node menggunakan installer di [nodejs.org](https://nodejs.org/en/download), dan Python dari [python.org](https://www.python.org/downloads/). Buka ulang terminal setelah instalasi.
+Pasang Node 24 menggunakan installer di [nodejs.org](https://nodejs.org/en/download), dan Python dari [python.org](https://www.python.org/downloads/). Buka ulang terminal setelah instalasi.
 
 ### Ubuntu/Debian atau WSL2
 
@@ -44,7 +44,18 @@ sudo apt update
 sudo apt install -y git curl ca-certificates python3 python3-venv python3-pip
 ```
 
-Pasang Node dengan metode Linux di [halaman download Node.js](https://nodejs.org/en/download). Paket bawaan distro dapat lebih lama; cek versinya sebelum melanjutkan.
+Pasang Node 24 melalui nvm sebagai user biasa (tanpa `sudo`). Perintah installer mengikuti [panduan resmi nvm](https://github.com/nvm-sh/nvm#installing-and-updating):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh -o /tmp/scanner-nvm-install.sh
+bash /tmp/scanner-nvm-install.sh
+source ~/.nvm/nvm.sh
+nvm install 24
+nvm use 24
+nvm alias default 24
+```
+
+Jika nvm sudah dipasang di direktori khusus, source `nvm.sh` dari direktori instalasi tersebut. Tidak perlu menghapus Node bawaan Ubuntu; nvm memilih Node untuk shell pengguna. Jangan memasang paket `npm` dari apt untuk menggantikan pnpm.
 
 ### pnpm
 
@@ -58,6 +69,8 @@ python3 --version
 
 Jika instalasi global gagal karena izin, gunakan Node melalui version manager di direktori pengguna sesuai panduan Node. Jalankan aplikasi sebagai pengguna biasa.
 
+Pastikan `node --version` menghasilkan `v24.x` dan `pnpm --version` menghasilkan `11.25.0` sebelum melanjutkan. Jangan menjalankan build jika instalasi dependency belum berhasil.
+
 ## 2. Clone dan Install Dependency
 
 ```bash
@@ -67,6 +80,8 @@ pnpm install --frozen-lockfile
 ```
 
 Jika repository private, gunakan akun GitHub yang memiliki akses. Lockfile menjaga versi dependency konsisten. Workspace mengizinkan build `esbuild` untuk `tsx`.
+
+Jika repository sudah di-clone, cukup masuk ke foldernya dan ulangi `pnpm install --frozen-lockfile` setelah memasang tools. Tidak perlu clone ulang. `npm build` bukan perintah build yang valid; `npm run build` juga akan gagal dengan `tsc: not found` apabila dependency belum terpasang. Proyek ini menggunakan pnpm untuk instalasi dan menjalankan script.
 
 ## 3. Konfigurasi Environment
 
@@ -289,6 +304,10 @@ Jangan menjalankan proses terminal dan service systemd dengan token bot yang sam
 
 | Gejala | Penyelesaian |
 | --- | --- |
+| `pnpm: command not found` | Selesaikan langkah 1: pasang Node 24 lalu `npm install -g pnpm@11.25.0` |
+| `Unknown command: build` dari npm | Gunakan `pnpm build` setelah dependency berhasil diinstal |
+| `tsc: not found` | Jalankan `pnpm install --frozen-lockfile` sampai berhasil, lalu `pnpm build`; tidak perlu TypeScript global |
+| Versi Node tidak didukung pnpm | Muat nvm dan jalankan `nvm use 24` |
 | `.env` tidak ditemukan | Buat file sesuai langkah 3; jalankan dari root repo |
 | Token Telegram wajib diisi | Isi `.env`, restart, cek environment shell yang menimpa nilai |
 | Telegram 401 | Perbaiki token atau buat ulang melalui BotFather |

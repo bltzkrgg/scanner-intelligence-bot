@@ -8,7 +8,7 @@ Scanner token Solana sesuai permintaan melalui Telegram dan HTTP API. Kirim alam
 
 Ikuti [tutorial instalasi lengkap](docs/installation.md) dari pemasangan tools, pembuatan bot Telegram, pengujian API, sampai menjalankan bot di server.
 
-Jika Node.js dan pnpm sudah terpasang:
+Siapkan Node.js 24 dan pnpm 11.25.0 terlebih dahulu melalui [langkah pemasangan tools](docs/installation.md#1-pasang-tools). pnpm 11 membutuhkan Node minimal 22.13. Setelah kedua tools tersedia:
 
 ```bash
 git clone https://github.com/bltzkrgg/scanner-intelligence-bot.git
