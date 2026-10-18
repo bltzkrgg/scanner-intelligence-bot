@@ -16,6 +16,7 @@
     "lint": "eslint . --ext .ts",
     "api:dev": "tsx --env-file=.env apps/api/src/server.ts",
     "telegram:dev": "tsx --env-file=.env apps/telegram/src/bot.ts",
+    "gmgn:check": "tsx --env-file=.env apps/api/src/check-provider.ts",
     "research:build-dataset": "python3 research/scripts/build_dataset.py",
     "research:label-outcomes": "python3 research/scripts/label_outcomes.py"
   },

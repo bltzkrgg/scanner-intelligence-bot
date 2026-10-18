@@ -12,14 +12,14 @@ Panduan ini diperbarui pada 18 Oktober 2026 berdasarkan kode dalam repository.
 | --- | --- |
 | Telegram: CA langsung, `/start`, `/scan` | Tersedia |
 | Scan Solana dengan data contoh | Tersedia, default `GMGN_PROVIDER=mock` |
-| Query GMGN CLI untuk Solana | Adapter awal; mapping live belum divalidasi |
+| Query GMGN CLI untuk Solana | Token info/security dan discovery; lihat panduan live |
 | Discord | Rencana; belum ada aplikasi atau script startup |
 | Bank smart wallet bersama dan pengaruh ke skor | Rencana; belum ada command penambahan wallet |
-| Deteksi kandidat runner dan pelacakan performa | Rencana; belum ada worker atau command runner |
+| Deteksi kandidat runner dan pelacakan performa | Tersedia di Telegram dengan provider live dan worker opsional |
 | BSC, Ethereum, Robinhood Chain dan pemilihan chain | Rencana; scanner saat ini hanya menerima format alamat Solana |
 | Penyimpanan laporan dan aktivitas wallet di PostgreSQL | Belum terhubung |
 
-Rincian pengembangan berikutnya ada di [rencana fitur](roadmap.md). Mengisi token Discord atau memasang database saja belum mengaktifkan fitur yang masih direncanakan.
+Aktivasi data nyata, command runner, dan penyimpanan histori dijelaskan di [panduan live dan runner](live-and-runner.md). Rincian pengembangan berikutnya ada di [rencana fitur](roadmap.md). Mengisi token Discord atau memasang database saja belum mengaktifkan fitur yang masih direncanakan.
 
 ## Jalur Cepat Telegram
 
@@ -135,7 +135,7 @@ curl --fail-with-body -X POST http://localhost:3000/scan \
   -d '{"mint":"So11111111111111111111111111111111111111112"}'
 ```
 
-Hasil yang diharapkan: HTTP 200 dengan `snapshot.symbol: "MOCK"`, `snapshot.source: "fixture"`, skor, klasifikasi, dan metrics. Data mock tidak menggambarkan token sebenarnya.
+Hasil yang diharapkan pada mode mock: HTTP 200 dengan `snapshot.symbol: "MOCK"`, `snapshot.source: "fixture"`, warning demo, serta skor dan klasifikasi `null`. Data mock tidak menggambarkan token sebenarnya.
 
 Tekan `Ctrl+C` untuk menghentikan API. Jika port sudah dipakai, ubah `PORT` di `.env`, restart, lalu gunakan port baru pada URL curl.
 
@@ -167,19 +167,19 @@ Buka chat bot, tekan Start atau kirim `/start`, kemudian:
 So11111111111111111111111111111111111111112
 ```
 
-Bot langsung mengirim laporan Indonesia dengan klasifikasi, skor, sumber `fixture`, metrics, dan risiko. `/scan <alamat_mint>` tetap tersedia. Kirim satu alamat mint saja dalam pesan; pesan biasa diabaikan.
+Pada mode mock, bot mengirim pemberitahuan MODE DEMO tanpa skor/klasifikasi/win rate. Untuk laporan token yang sebenarnya, aktifkan provider live sesuai [panduan live dan runner](live-and-runner.md). `/scan <alamat_mint>` tetap tersedia. Kirim satu alamat mint saja dalam pesan; pesan biasa diabaikan.
 
 Contoh pengujian setelah startup:
 
 | Pesan | Hasil yang diharapkan |
 | --- | --- |
 | `/start` | Petunjuk pengiriman CA |
-| Satu CA Solana tanpa tambahan teks | Satu laporan token |
+| Satu CA Solana tanpa tambahan teks | Pesan demo pada mock; laporan data token pada cli |
 | `/scan <CA_Solana>` | Satu laporan yang sama |
 | `halo` atau `cek <CA>` | Diabaikan |
 | Alamat EVM `0x...` langsung | Diabaikan; multichain belum tersedia |
 
-Pada mode mock semua CA valid menghasilkan data contoh yang sama, dengan alamat input masing-masing. Kemunculan laporan membuktikan alur pesan bekerja, bukan bahwa data live sudah aktif.
+Pada mode mock semua CA valid hanya menguji alur pesan. Tidak ada penilaian CA dari data contoh. Gunakan `pnpm gmgn:check <CA>` untuk memeriksa integrasi live sebelum mengaktifkan worker.
 
 Untuk menerima CA langsung di grup, nonaktifkan privacy mode melalui `/setprivacy` pada BotFather, pilih bot, lalu Disable. Jika diperlukan, keluarkan dan tambahkan bot kembali ke grup. Pada chat pribadi, tidak perlu mengubah privacy mode.
 
@@ -210,18 +210,19 @@ Jaringan: Solana
 Mode data: MOCK / data contoh, bukan data pasar aktual.
 
 Kirim satu CA Solana langsung untuk meminta laporan.
-Menu: /start, /scan, /help, /status, /chatid.
-Smart wallet bank, token runner, multichain, dan Discord belum aktif.
+Menu: /start, /scan, /help, /status, /chatid, /runner, /runners.
+Runner: NONAKTIF. Interval: 300 detik setelah siklus selesai.
+Smart wallet bank sendiri, multichain, dan Discord belum aktif.
 ```
 
 Pada mode `cli`, baris mode menyatakan GMGN CLI dan bahwa koneksi provider belum diverifikasi oleh status ini. Notifikasi menunjukkan proses mulai berjalan, bukan hasil pengujian kesehatan provider. Kegagalan pengiriman notifikasi dicatat sebagai warning dan tidak menghentikan bot.
 
 ## 8. GMGN Live (Opsional)
 
-Adapter masih awal: field belum terpetakan diisi nol dan mapping JSON belum diuji live dalam proyek.
+Ikuti [panduan live dan runner](live-and-runner.md) untuk aktivasi lengkap. Mapping token info, security, dan discovery mendukung payload langsung maupun envelope CLI. Field tidak tersedia tetap `null`. Skor historis belum tersedia karena benchmark riil belum terpasang.
 
 ```bash
-npm install -g gmgn-cli
+npm install -g gmgn-cli@1.6.7
 gmgn-cli --version
 ```
 
@@ -234,6 +235,14 @@ gmgn-cli token info --chain sol --address So111111111111111111111111111111111111
 ```
 
 Selesaikan akses atau autentikasi CLI sebelum scan live. Lihat [catatan integrasi](gmgn-integration.md).
+
+Uji melalui adapter aplikasi juga:
+
+```bash
+pnpm gmgn:check So11111111111111111111111111111111111111112 --discovery
+```
+
+Setelah berhasil, isi `GMGN_PROVIDER=cli` dan restart bot. Aktifkan runner hanya sesudah query live berhasil, sesuai panduan live dan runner.
 
 ## 9. Dataset Riset (Opsional)
 
@@ -353,7 +362,8 @@ Jangan menjalankan proses terminal dan service systemd dengan token bot yang sam
 | CA langsung tidak dibalas di grup | Periksa privacy mode BotFather dan izin bot membaca/mengirim pesan |
 | CA langsung tidak dibalas di chat pribadi | Kirim satu alamat Solana saja; cek proses bot dan log |
 | Alamat `0x...` tidak dibalas | Dukungan EVM belum diimplementasikan |
-| Command wallet/runner atau Discord tidak tersedia | Masih rencana; lihat roadmap |
+| Command wallet atau Discord tidak tersedia | Masih rencana; lihat roadmap |
+| Runner nonaktif/tidak ada kandidat | Cek RUNNER_ENABLED, mode cli, TELEGRAM_ADMIN_IDS dan /runners; kandidat hanya dicatat bila memenuhi syarat |
 | PostgreSQL tidak berisi laporan | Persistence belum terhubung pada MVP |
 | Build gagal pada Node lama | Gunakan versi kompatibel dan install dependency ulang |
 

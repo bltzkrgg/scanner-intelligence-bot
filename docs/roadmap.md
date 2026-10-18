@@ -1,6 +1,6 @@
 # Rencana Smart Wallet, Token Runner, dan Multichain
 
-Dokumen perencanaan per 18 Oktober 2026. Fitur di bawah belum diimplementasikan dan bukan langkah instalasi yang sudah bisa dijalankan. Tutorial untuk kode saat ini ada di [installation.md](installation.md).
+Dokumen perencanaan per 18 Oktober 2026. Scan live dan runner Solana dasar sudah tersedia; lihat [panduan aktivasi](live-and-runner.md). Bank wallet user, Discord, dan multichain masih rencana. Tutorial dasar ada di [installation.md](installation.md).
 
 ## Bank Smart Wallet Bersama
 
@@ -12,9 +12,9 @@ Usulan bobot bank smart wallet adalah 20% dari skor gabungan, dengan komponen la
 
 ## Token Runner
 
-Usulan fitur meliputi pencarian kandidat sebelum naik dan penyimpanan histori performanya. Cakupan akhir masih perlu dikonfirmasi: pencarian kandidat, database token yang pernah runner, atau keduanya.
+Versi dasar sudah mencari kandidat dari trending GMGN dan scan CA, menyimpan titik deteksi, serta memperbarui histori performanya. Rule dan batas cakupan ada di [panduan runner](live-and-runner.md). Kandidat tidak berarti bot mendeteksi sebelum setiap kenaikan.
 
-Kandidat dapat berasal dari pembelian beberapa smart wallet dalam suatu periode, kemudian disaring berdasarkan likuiditas, volume, pertumbuhan holder, distribusi, dan risiko developer. Runner Score dipisahkan dari skor kualitas/risiko token.
+Pengembangan berikutnya adalah pemicu berdasarkan transaksi wallet dalam bank user, pertumbuhan holder, dan riwayat developer. Versi saat ini menggunakan likuiditas, buy/sell, perubahan harga, konsentrasi holder, security, dan jumlah smart money berlabel provider. Runner Score dipisahkan dari skor historis/risiko token.
 
 Simpan harga, market cap, likuiditas, dan waktu pertama deteksi. Pantau perubahan harga, kenaikan maksimum, drawdown, serta aktivitas keluar wallet. Label 2x/5x baru diberikan setelah tercapai dari titik deteksi; ini bukan jaminan kenaikan. Evaluasi historis harus memakai informasi yang tersedia pada waktu penilaian dan menyertakan kandidat gagal.
 

@@ -2,7 +2,9 @@
 
 Scanner token Solana sesuai permintaan melalui Telegram dan HTTP API. Kirim alamat mint Solana langsung (atau `/scan <mint>`) untuk laporan berbahasa Indonesia tentang distribusi holder, developer, smart money, momentum, risiko, dan perbandingan dengan benchmark tersimpan. Pesan biasa yang bukan alamat mint diabaikan.
 
-**Status: MVP pengembangan.** Mode default menggunakan snapshot dan benchmark sintetis, bukan data pasar aktual. Integrasi GMGN CLI tersedia sebagai adapter awal; mapping respons live belum diuji dengan kredensial GMGN dan beberapa metrik belum tersedia.
+**Status:** Telegram mendukung scan data live Solana melalui GMGN CLI dan pemantauan kandidat runner. Mode default `mock` hanya menampilkan pesan demo, tanpa skor atau win rate. Field yang tidak tersedia pada mode live bernilai `null`, bukan nol. Skor historis tidak diterbitkan karena benchmark riil belum terpasang.
+
+Untuk mengaktifkan data nyata dan runner, ikuti [panduan live dan runner](docs/live-and-runner.md). Query token dan discovery sudah diuji dengan CLI resmi dan public demo key; untuk penggunaan bot, gunakan API key Anda sendiri.
 
 ## Mulai
 
@@ -31,7 +33,7 @@ Kedua script memuat `.env` dari root repo. Bot dan API adalah proses independen;
 
 ## Rencana Berikutnya
 
-Bank smart wallet bersama, deteksi token runner, Discord, serta dukungan BSC/Ethereum/Robinhood Chain masih berupa rencana dan belum aktif pada kode saat ini. Lihat [rencana fitur](docs/roadmap.md) untuk mekanisme yang diusulkan dan [status instalasi](docs/installation.md#status-fitur-sebelum-instalasi) untuk fitur yang sudah dapat dijalankan.
+Bank smart wallet bersama milik user, Discord, serta dukungan BSC/Ethereum/Robinhood Chain masih berupa rencana. Runner Solana memakai label smart money dari provider, bukan bank wallet user. Lihat [rencana fitur](docs/roadmap.md) dan [panduan runner](docs/live-and-runner.md).
 
 ## Komponen
 
@@ -58,12 +60,16 @@ Bank smart wallet bersama, deteksi token runner, Discord, serta dukungan BSC/Eth
 | `TELEGRAM_STARTUP_CHAT_ID` | kosong | Opsional: tujuan satu notifikasi setiap proses bot dimulai |
 | `GMGN_PROVIDER` | `mock` | `mock` atau `cli` |
 | `GMGN_API_KEY` | kosong | Kredensial query CLI live |
+| `RUNNER_ENABLED` | `false` | Aktifkan worker runner; wajib provider `cli` dan admin IDs |
+| `RUNNER_INTERVAL_SECONDS` | `300` | Jeda setelah siklus; minimum 60 detik |
+| `RUNNER_STATE_FILE` | `data/runners.json` | File state persisten, satu proses penulis |
+| `TELEGRAM_ADMIN_IDS` | kosong | User ID admin dipisahkan koma, tanpa spasi |
 | `DATABASE_URL` | contoh URL lokal | Persiapan integrasi persistence |
 | `LOG_LEVEL` | `info` | Level log Pino |
 
 `.env` diabaikan Git. Simpan token hanya di mesin aplikasi.
 
-Bot mendaftarkan menu perintah Telegram secara otomatis: `/start`, `/scan`, `/help`, `/status`, dan `/chatid`. Bentuk tombol menu mengikuti aplikasi Telegram. Untuk notifikasi startup, kirim `/chatid` ke bot, isi hasilnya pada `TELEGRAM_STARTUP_CHAT_ID`, lalu restart. Lihat [panduan menu dan notifikasi](docs/installation.md#menu-telegram-dan-notifikasi-startup).
+Bot mendaftarkan menu perintah Telegram secara otomatis, termasuk `/runner`, `/runners`, `/runner_on`, `/runner_off`, dan `/runner_remove`. Bentuk tombol mengikuti aplikasi Telegram. `/chatid` menampilkan chat ID untuk notifikasi dan user ID untuk admin. Lihat [panduan menu dan notifikasi](docs/installation.md#menu-telegram-dan-notifikasi-startup).
 
 ## API
 
@@ -73,11 +79,11 @@ curl --fail-with-body -X POST http://localhost:3000/scan \
   -d '{"mint":"So11111111111111111111111111111111111111112"}'
 ```
 
-JSON mencakup `snapshot`, `cohortSize`, `classification`, `historicalScore`, `similarWinRatePct`, `similarMedianReturn24hPct`, `metrics`, dan `warnings`. Pada mode mock, `snapshot.source` adalah `fixture`; mint input hanya mengganti alamat pada snapshot contoh.
+JSON mencakup `snapshot`, `cohortSize`, `classification`, `historicalScore`, `similarWinRatePct`, `similarMedianReturn24hPct`, `metrics`, dan `warnings`. `classification`, skor dan statistik historis default `null`. Pada mode mock snapshot masih merupakan fixture berlabel jelas dengan warning demo; Telegram hanya menampilkan pemberitahuan demo. HTTP 400 untuk input salah dan 502 untuk kegagalan provider. API tidak menjalankan worker runner; worker berjalan dalam proses Telegram.
 
 ## Skor
 
-Skor adalah rata-rata tertimbang percentile terhadap cohort benchmark, bukan probabilitas profit. Jika cohort berisi kurang dari lima token, analisis memakai seluruh benchmark.
+Mesin skor historis untuk riset tetap tersedia, tetapi scanner produksi tidak lagi memuat benchmark sintetis secara otomatis. Klasifikasi berikut hanya digunakan ketika layanan analisis secara eksplisit diberi benchmark riil dan semua metrik tersedia. Tidak ada fitur mengganti benchmark produksi lewat `.env` pada versi ini.
 
 | Skor | Klasifikasi |
 | --- | --- |
@@ -87,13 +93,15 @@ Skor adalah rata-rata tertimbang percentile terhadap cohort benchmark, bukan pro
 | 32-47 | KURANG MENARIK |
 | 0-31 | RISIKO TINGGI |
 
-Statistik outcome bawaan berasal dari fixture sintetis, belum merupakan backtest pasar tervalidasi.
+Runner Score adalah rule momentum terpisah (bukan skor historis/probabilitas profit). Lihat [bobot dan syarat runner](docs/live-and-runner.md#aturan-kandidat).
 
 ## Batas MVP
 
 - Tidak melakukan transaksi atau menggunakan private key wallet.
-- Data diambil saat CA dikirim langsung atau melalui `/scan`; tidak ada monitoring harga atau alert otomatis.
-- Adapter live hanya mengambil `token info`. Metrik belum terpetakan diisi nol, sehingga skor live belum layak dipakai untuk keputusan finansial.
+- Scan mengambil `token info` dan `token security`; cache per CA selama 30 detik.
+- Worker opsional mengambil trending dan memperbarui kandidat tiap siklus. Belum ada alert transaksi atau broadcast kandidat otomatis.
+- Metrik yang tidak memiliki padanan semantik tetap `null`; volume bundler tidak diperlakukan sebagai kepemilikan bundler.
+- Runner menyimpan maksimal 50 kandidat, memantau 7 hari sejak deteksi. Harga puncak/drawdown adalah sampel yang teramati, bukan seluruh tick pasar.
 - PostgreSQL belum terhubung ke proses scan; belum ada migrasi atau penyimpanan laporan ke database.
 - API belum memiliki autentikasi atau rate limiting. Batasi akses server seperti pada tutorial.
 - Validasi mint masih berdasarkan pola string base58, belum verifikasi on-chain.

@@ -47,6 +47,18 @@ export type BenchmarkToken = TokenSnapshot & {
   outcomeMaxDrawdown24hPct: number;
 };
 
+export type NumericSnapshotField = {
+  [K in keyof TokenSnapshot]: TokenSnapshot[K] extends number ? K : never
+}[keyof TokenSnapshot];
+
+export type MarketSnapshot = Omit<TokenSnapshot, NumericSnapshotField> & {
+  [K in NumericSnapshotField]: number | null
+} & {
+  priceUsd?: number | null;
+  holderCount?: number | null;
+  dataWarnings?: string[];
+};
+
 export type MetricScore = {
   name: string;
   value: number;
@@ -56,10 +68,10 @@ export type MetricScore = {
 };
 
 export type IntelligenceResult = {
-  snapshot: TokenSnapshot;
+  snapshot: MarketSnapshot;
   cohortSize: number;
-  classification: IntelligenceClassification;
-  historicalScore: number;
+  classification: IntelligenceClassification | null;
+  historicalScore: number | null;
   similarWinRatePct: number | null;
   similarMedianReturn24hPct: number | null;
   metrics: MetricScore[];
