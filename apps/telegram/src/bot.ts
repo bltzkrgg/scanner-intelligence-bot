@@ -47,7 +47,7 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let cycle: Promise<void> | undefined;
 async function tick(): Promise<void> {
   if (stopping) return;
-  cycle = runner.cycle({ scheduled: true, fallbackIntervalSec: config.runnerIntervalSeconds })
+  cycle = runner.cycle({ scheduled: true })
     .then((chains) => sendRunnerNotifications(bot, runner, config, chains));
   try { await cycle; } catch { logger.warn("Runner cycle or state write failed"); }
   if (!stopping) timer = setTimeout(() => { void tick(); }, 1000);

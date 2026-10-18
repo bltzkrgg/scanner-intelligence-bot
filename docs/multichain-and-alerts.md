@@ -95,9 +95,9 @@ Notifikasi yang dibuat:
 1. Kandidat baru saat pertama memenuhi rule dan berhasil disimpan.
 2. Pencapaian 2x dari harga awal deteksi yang teramati saat query.
 3. Pencapaian 5x dari harga awal deteksi yang teramati saat query.
-4. Volume spike Solana setelah baseline siap, sesuai config dan cooldown per token.
+4. Volume spike Solana/BSC setelah baseline siap, sesuai config dan cooldown per token per jaringan.
 
-Solana/RH memakai filter admin melalui `/setconfig`; contoh pesan terkini, seluruh key, dan mekanisme baseline ada di [runner-config.md](runner-config.md).
+Solana/BSC/RH memakai filter admin melalui `/setconfig`; contoh pesan terkini, seluruh key, dan mekanisme baseline ada di [runner-config.md](runner-config.md).
 
 Tidak ada pesan untuk setiap perubahan harga. Angka 2x/5x bukan hasil dari harga peluncuran atau ATH. Kandidat bisa gagal, dan sampel berkala dapat melewatkan pergerakan di antara query. Tidak ada notifikasi transaksi wallet pada versi ini.
 
@@ -112,13 +112,13 @@ Harga: $0.001
 Market cap: $1,000,000
 Likuiditas: $75,000
 ...
-Lolos: rule eksperimen BSC. Bukan skor profit.
+Lolos: filter alert admin. Bukan skor profit.
 Detail: /runner bsc <CA>
 Event ID: <identitas-event>
 Harga berdasarkan sampel saat query. Kandidat bukan jaminan kenaikan atau sinyal beli.
 ```
 
-Antrean alert disimpan bersama state sebelum pengiriman. Maksimal pesan per jaringan mengikuti maxPerScan (default 5; BSC tetap 5), dengan batas gabungan 50 per flush dan jeda antar pesan. Pesan gagal atau di luar kuota tetap antre untuk siklus berikutnya; error terlihat di `/runners` dan `/status`. Data event lebih dari 15 menit diberi label tertunda. Alert dari chain yang dinonaktifkan ditahan sampai chain diaktifkan lagi atau histori dihapus.
+Antrean alert disimpan bersama state sebelum pengiriman. Maksimal pesan per jaringan mengikuti maxPerScan masing-masing (default 5), dengan batas gabungan 50 per flush dan jeda antar pesan. Pesan gagal atau di luar kuota tetap antre untuk siklus berikutnya; error terlihat di `/runners` dan `/status`. Data event lebih dari 15 menit diberi label tertunda. Alert dari chain yang dinonaktifkan ditahan sampai chain diaktifkan lagi atau histori dihapus.
 
 Pengiriman umumnya sekali per event, tetapi bukan jaminan exactly-once: crash setelah Telegram menerima pesan namun sebelum acknowledgment tersimpan dapat menghasilkan duplikat saat restart. Event ID membantu mengenalinya. Mengganti chat tujuan menyebabkan alert tertunda berikutnya dikirim ke tujuan baru. State lama versi 1 dimigrasikan tanpa mengirim ulang kandidat/milestone historis.
 

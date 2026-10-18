@@ -18,8 +18,14 @@ const rhFields = {
   minVolume5mUsd: money.default(100000), minTotalFeesEth: money.default(0.1),
   maxPerScan: maxAlerts.default(5)
 };
+const bscFields = z.object(solFields).omit({ minTotalFeesSol: true }).extend({
+  minVolume5mUsd: money.default(50000), minTotalFeesBnb: money.default(0.5),
+  maxAgeMin: z.number().int().min(1).max(43200).default(60),
+  volumeSpikeMinLiquidityUsd: money.default(20000)
+}).shape;
 export const alertConfigSchema = z.object({
   tokenAlerts: z.object(solFields).prefault({}),
+  bscAlerts: z.object(bscFields).prefault({}),
   robinhoodAlerts: z.object(rhFields).prefault({})
 });
 export type AlertConfig = z.infer<typeof alertConfigSchema>;
@@ -27,6 +33,7 @@ export const defaultAlertConfig = (): AlertConfig => alertConfigSchema.parse({})
 
 const fields: Record<string, z.ZodType> = Object.fromEntries([
   ...Object.entries(solFields).map(([key, schema]) => [`tokenAlerts.${key}`, schema]),
+  ...Object.entries(bscFields).map(([key, schema]) => [`bscAlerts.${key}`, schema]),
   ...Object.entries(rhFields).map(([key, schema]) => [`robinhoodAlerts.${key}`, schema])
 ]);
 const aliases: Record<string, string> = Object.fromEntries(Object.keys(fields).map((path) => {
@@ -47,47 +54,61 @@ export function updateAlertConfig(config: AlertConfig, key: string, input: strin
   return { config: alertConfigSchema.parse(next), key: path, value: result.data };
 }
 
-export function alertsEnabled(config: AlertConfig, chain: Chain): boolean {
-  return chain === "sol" ? config.tokenAlerts.enabled : chain === "robinhood" ? config.robinhoodAlerts.enabled : true;
+function chainAlertConfig(config: AlertConfig, chain: Chain) {
+  return chain === "sol" ? config.tokenAlerts : chain === "bsc" ? config.bscAlerts : config.robinhoodAlerts;
 }
 
-export function alertInterval(config: AlertConfig, chain: Chain, fallback: number): number {
-  return chain === "sol" ? config.tokenAlerts.pollIntervalSec : chain === "robinhood" ? config.robinhoodAlerts.pollIntervalSec : fallback;
+export function volumeSpikeConfig(config: AlertConfig, chain: Chain) {
+  return chain === "sol" ? config.tokenAlerts : chain === "bsc" ? config.bscAlerts : null;
+}
+
+function minimumNativeFees(config: AlertConfig, chain: Chain): number {
+  return chain === "sol" ? config.tokenAlerts.minTotalFeesSol
+    : chain === "bsc" ? config.bscAlerts.minTotalFeesBnb : config.robinhoodAlerts.minTotalFeesEth;
+}
+
+export function alertsEnabled(config: AlertConfig, chain: Chain): boolean {
+  return chainAlertConfig(config, chain).enabled;
+}
+
+export function alertInterval(config: AlertConfig, chain: Chain): number {
+  return chainAlertConfig(config, chain).pollIntervalSec;
 }
 
 export function maxAlertsPerScan(config: AlertConfig, chain: Chain): number {
-  return chain === "sol" ? config.tokenAlerts.maxPerScan : chain === "robinhood" ? config.robinhoodAlerts.maxPerScan : 5;
+  return chainAlertConfig(config, chain).maxPerScan;
 }
 
 export type FilterResult = { passed: boolean; reasons: string[] };
 export function evaluateTokenAlert(s: MarketSnapshot, config: AlertConfig): FilterResult {
   const reasons: string[] = [];
   const chain = s.chain ?? "sol";
-  if (chain === "bsc") reasons.push("BSC memakai rule Runner Score, bukan config Solana/RH.");
   if (!alertsEnabled(config, chain)) reasons.push("Alert jaringan ini dinonaktifkan.");
   if (s.source !== "gmgn-cli" || !s.priceUsd || s.priceUsd <= 0) reasons.push("Harga live belum tersedia.");
   if (s.runnerBlockReason) reasons.push(s.runnerBlockReason);
-  const c = chain === "sol" ? config.tokenAlerts : config.robinhoodAlerts;
+  const c = chainAlertConfig(config, chain);
   if (s.volume5mUsd == null || s.volume5mUsd < c.minVolume5mUsd) reasons.push("Volume rolling 5 menit belum memenuhi minimum / belum tersedia.");
-  const minFees = chain === "sol" ? config.tokenAlerts.minTotalFeesSol : config.robinhoodAlerts.minTotalFeesEth;
+  const minFees = minimumNativeFees(config, chain);
   if (s.totalFeesNative == null || s.totalFeesNative < minFees) reasons.push("Total fees native GMGN belum memenuhi minimum / belum tersedia.");
-  if (chain === "sol") {
-    if (s.marketCapUsd === null || s.marketCapUsd <= config.tokenAlerts.minMarketCapUsd) reasons.push("Market cap harus lebih besar dari minimum.");
-    if (s.dexAgeMinutes == null || s.dexAgeMinutes > config.tokenAlerts.maxAgeMin) reasons.push("Umur sejak DEX open/migration melewati batas / belum tersedia.");
+  const ageConfig = volumeSpikeConfig(config, chain);
+  if (ageConfig) {
+    if (s.marketCapUsd === null || s.marketCapUsd <= ageConfig.minMarketCapUsd) reasons.push("Market cap harus lebih besar dari minimum.");
+    if (s.dexAgeMinutes == null || s.dexAgeMinutes > ageConfig.maxAgeMin) reasons.push("Umur sejak DEX open/migration melewati batas / belum tersedia.");
   }
   return { passed: reasons.length === 0, reasons };
 }
 
 export function evaluateVolumeSpike(s: MarketSnapshot, config: AlertConfig, baseline: number | null): FilterResult {
-  const c = config.tokenAlerts;
+  const chain = s.chain ?? "sol";
+  const c = volumeSpikeConfig(config, chain);
   const reasons: string[] = [];
-  if (s.chain && s.chain !== "sol") reasons.push("Volume spike config ini khusus Solana.");
+  if (!c) return { passed: false, reasons: ["Volume spike config hanya tersedia untuk Solana/BSC."] };
   if (!c.enabled || s.source !== "gmgn-cli" || !s.priceUsd || s.priceUsd <= 0) reasons.push("Alert/harga live belum aktif.");
   if (s.runnerBlockReason) reasons.push(s.runnerBlockReason);
   if (baseline === null || baseline <= 0 || s.volume5mUsd == null || s.volume5mUsd / baseline < c.volumeSpikeMultiplier) reasons.push("Baseline belum siap atau lonjakan belum cukup.");
   if (s.volume5mUsd == null || s.volume5mUsd < c.minVolume5mUsd) reasons.push("Volume 5 menit belum cukup.");
   if (s.marketCapUsd === null || s.marketCapUsd <= c.minMarketCapUsd) reasons.push("Market cap belum cukup.");
-  if (s.totalFeesNative == null || s.totalFeesNative < c.minTotalFeesSol) reasons.push("Total fees SOL belum cukup.");
+  if (s.totalFeesNative == null || s.totalFeesNative < minimumNativeFees(config, chain)) reasons.push("Total fees native belum cukup.");
   if (s.swaps5m == null || s.swaps5m < c.volumeSpikeMinSwaps5m) reasons.push("Swaps 5 menit belum cukup.");
   if (s.liquidityUsd === null || s.liquidityUsd < c.volumeSpikeMinLiquidityUsd) reasons.push("Likuiditas belum cukup.");
   return { passed: reasons.length === 0, reasons };

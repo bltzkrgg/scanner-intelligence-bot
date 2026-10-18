@@ -12,8 +12,8 @@ export function registerConfigCommands(bot: Bot, monitor: RunnerMonitor, config:
       const args = ctx.match.trim().split(/\s+/).filter(Boolean);
       if (command === "getconfig") {
         const section = args[0];
-        if (args.length > 1 || (section && section !== "tokenAlerts" && section !== "robinhoodAlerts")) {
-          await ctx.reply("Gunakan /getconfig [tokenAlerts|robinhoodAlerts].");
+        if (args.length > 1 || (section && section !== "tokenAlerts" && section !== "bscAlerts" && section !== "robinhoodAlerts")) {
+          await ctx.reply("Gunakan /getconfig [tokenAlerts|bscAlerts|robinhoodAlerts].");
           return;
         }
         const settings = monitor.snapshot().alertConfig;
@@ -33,7 +33,7 @@ export function registerConfigCommands(bot: Bot, monitor: RunnerMonitor, config:
         await ctx.reply(`Tersimpan: ${saved.key} = ${saved.value}\nBerlaku pada siklus berikutnya tanpa restart. Lihat /getconfig.`);
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
-        await ctx.reply(message.startsWith("Key tidak dikenal") || /^(tokenAlerts|robinhoodAlerts)\./.test(message)
+        await ctx.reply(message.startsWith("Key tidak dikenal") || /^(tokenAlerts|bscAlerts|robinhoodAlerts)\./.test(message)
           ? message : "Gagal menyimpan config. Periksa izin file state; config sebelumnya dipertahankan.");
       }
     });

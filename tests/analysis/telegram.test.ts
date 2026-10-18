@@ -79,9 +79,17 @@ describe("Telegram scan routing", () => {
     expect(monitor.snapshot().alertConfig.tokenAlerts.pollIntervalSec).toBe(15);
     await send("/getconfig tokenAlerts");
     expect(reply).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ text: expect.stringContaining("tokenAlerts.pollIntervalSec: 15") }));
+    await send("/setconfig bscAlerts.minTotalFeesBnb 0.25", 2);
+    expect(monitor.snapshot().alertConfig.bscAlerts.minTotalFeesBnb).toBe(0.5);
+    await send("/setconfig bscAlerts.minTotalFeesBnb 0.25");
+    await send("/setconfig bscAlerts.pollIntervalSec 1");
+    expect(reply).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ text: expect.stringMatching(/^bscAlerts\.pollIntervalSec:/) }));
+    await send("/getconfig bscAlerts");
+    expect(reply).toHaveBeenLastCalledWith("sendMessage", expect.objectContaining({ text: expect.stringContaining("bscAlerts.minTotalFeesBnb: 0.25") }));
     const restored = new RunnerMonitor(new FixtureGmgnAdapter(), file, true);
     await restored.init();
     expect(restored.snapshot().alertConfig.tokenAlerts.pollIntervalSec).toBe(15);
+    expect(restored.snapshot().alertConfig.bscAlerts.minTotalFeesBnb).toBe(0.25);
   });
   it("asks for a network for bare EVM addresses and scans only after selection", async () => {
     const { send, press, scan, reply } = setup();

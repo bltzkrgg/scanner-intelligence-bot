@@ -13,7 +13,7 @@ export function statusMessage(config: AppConfig, runner?: RunnerMonitor): string
     "",
     "Kirim CA langsung. Alamat 0x akan meminta pilihan BSC atau RH.",
     "Menu: /start, /scan, /help, /status, /chatid, /runner, /runners.",
-    `Runner: ${runner?.active ? "AKTIF" : "NONAKTIF"}. Interval Solana/RH: /getconfig; BSC: ${config.runnerIntervalSeconds} detik.`,
+    `Runner: ${runner?.active ? "AKTIF" : "NONAKTIF"}. Interval Solana/BSC/RH: /getconfig.`,
     `Notifikasi runner: ${config.telegramRunnerChatId ? "tujuan chat dikonfigurasi" : "NONAKTIF; isi TELEGRAM_RUNNER_CHAT_ID"}. Antrean: ${runner?.snapshot().pendingAlerts.length ?? 0}.`,
     runner?.snapshot().lastNotificationError ?? "",
     "Smart wallet bank sendiri dan Discord belum aktif."
@@ -22,7 +22,7 @@ export function statusMessage(config: AppConfig, runner?: RunnerMonitor): string
 
 export function registerUtilityCommands(bot: Bot, config: AppConfig, runner?: RunnerMonitor): void {
   bot.command("help", async (ctx) => {
-    await ctx.reply("Kirim CA langsung atau /scan <CA>. Untuk EVM pilih tombol BSC/RH, atau /scan bsc <CA> dan /scan rh <CA>.\n/runner [sol|bsc|rh] <CA>: evaluasi runner dan histori.\n/runners: daftar dan status pemantauan.\n/runner_on, /runner_off, /runner_remove <chain> <CA>, /runner_test: khusus admin.\n/getconfig, /setconfig <key> <value>: admin, filter alert Solana/RH tanpa restart.\n/status: mode data dan notifikasi.\n/chatid: ID chat dan user untuk konfigurasi.");
+    await ctx.reply("Kirim CA langsung atau /scan <CA>. Untuk EVM pilih tombol BSC/RH, atau /scan bsc <CA> dan /scan rh <CA>.\n/runner [sol|bsc|rh] <CA>: evaluasi runner dan histori.\n/runners: daftar dan status pemantauan.\n/runner_on, /runner_off, /runner_remove <chain> <CA>, /runner_test: khusus admin.\n/getconfig, /setconfig <key> <value>: admin, filter alert Solana/BSC/RH tanpa restart.\n/status: mode data dan notifikasi.\n/chatid: ID chat dan user untuk konfigurasi.");
   });
   bot.command("status", async (ctx) => { await ctx.reply(statusMessage(config, runner)); });
   bot.command("chatid", async (ctx) => { await ctx.reply(`Chat ID: ${ctx.chat.id}\nUser ID: ${ctx.from?.id ?? "tidak tersedia"}`); });

@@ -74,7 +74,7 @@ async function runnerInput(ctx: Context, text: string, monitor: RunnerMonitor, s
         `${snapshot.symbol} | ${CHAIN_NAMES[input.chain]} | ${snapshot.mint}`,
         `Runner Score: ${assessment.score ?? "belum tersedia"}`,
         `Status rule skor eksperimen: ${assessment.candidate ? "KANDIDAT" : "BELUM MEMENUHI / DATA BELUM LENGKAP"}`,
-        ...(input.chain === "bsc" ? [] : [`Filter alert admin: ${evaluateTokenAlert(snapshot, monitor.snapshot().alertConfig).passed ? "LOLOS" : "BELUM LOLOS"}`]),
+        `Filter alert admin: ${evaluateTokenAlert(snapshot, monitor.snapshot().alertConfig).passed ? "LOLOS" : "BELUM LOLOS"}`,
         ...assessment.reasons,
         tracked ? formatRunnerRecord(tracked) : "Belum masuk histori deteksi.",
         monitor.active ? "Pemantauan aktif." : "Pemantauan nonaktif. Admin perlu mengaktifkan runner.",

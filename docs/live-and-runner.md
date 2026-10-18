@@ -93,7 +93,7 @@ sudo journalctl -u scanner-telegram -n 50 --no-pager
 
 Pastikan path Node, pnpm, dan gmgn-cli tersedia pada PATH service systemd. Periksa dengan `command -v node`, `command -v pnpm`, dan `command -v gmgn-cli`, lalu sesuaikan unit seperti pada [tutorial instalasi](installation.md#10-jalankan-terus-di-server-ubuntu). Jangan jalankan terminal dan service bersamaan.
 
-Kirim `/runners` untuk status worker. Jika state lama dijeda, admin mengirim `/runner_on`. Jadwal Solana/RH kini diatur lewat `/setconfig` (default 60 detik), BSC memakai RUNNER_INTERVAL_SECONDS. Interval minimum antar awal polling; query lambat/cooldown dapat memperpanjangnya. Tidak ada siklus tumpang tindih. Lihat [pengaturan dan notifikasi runner](runner-config.md).
+Kirim `/runners` untuk status worker. Jika state lama dijeda, admin mengirim `/runner_on`. Jadwal Solana/BSC/RH kini diatur lewat `/setconfig` (default 60 detik); RUNNER_INTERVAL_SECONDS adalah pengaturan legacy dan tidak mengatur worker lagi. Interval minimum antar awal polling; query lambat/cooldown dapat memperpanjangnya. Tidak ada siklus tumpang tindih. Lihat [pengaturan dan notifikasi runner](runner-config.md).
 
 ## Command
 
@@ -116,7 +116,7 @@ Kirim `/runners` untuk status worker. Jika state lama dijeda, admin mengirim `/r
 
 Runner Score bukan skor risiko atau probabilitas profit. Ini rule eksperimen yang transparan, belum dikalibrasi lewat backtest.
 
-Rule skor di bawah masih ditampilkan pada laporan dan menjadi filter kandidat BSC. Kandidat baru Solana/RH sekarang memakai filter volume5m, fees dan syarat admin lainnya di [runner-config.md](runner-config.md), bukan syarat skor >= 70. Volume spike Solana juga memiliki pemicu tersendiri.
+Rule skor di bawah masih ditampilkan pada laporan sebagai evaluasi eksperimen. Kandidat baru Solana/BSC/RH sekarang memakai filter volume5m, fees dan syarat admin lainnya di [runner-config.md](runner-config.md), bukan syarat skor >= 70. Volume spike Solana/BSC juga memiliki pemicu tersendiri.
 
 | Komponen | Poin |
 | --- | --- |
@@ -126,7 +126,7 @@ Rule skor di bawah masih ditampilkan pada laporan dan menjadi filter kandidat BS
 | Smart money holder berlabel GMGN >= 3 | 15 |
 | Top 10 holder <= 25% / <= 35% | 15 / 5 |
 
-Syarat kandidat: skor >= 70, likuiditas >= USD 25.000, minimal 50 transaksi buy+sell 1j, perubahan 1j positif maksimal 200%, top 10 <= 35%, harga valid dan field penilaian tersedia. Insider holdings jika diketahui harus <= 12%; jika tidak tersedia, ketidakpastian ditampilkan dan tidak dianggap nol. Kandidat tidak berarti token aman.
+Syarat kandidat pada rule skor eksperimen (bukan filter pengiriman alert): skor >= 70, likuiditas >= USD 25.000, minimal 50 transaksi buy+sell 1j, perubahan 1j positif maksimal 200%, top 10 <= 35%, harga valid dan field penilaian tersedia. Insider holdings jika diketahui harus <= 12%; jika tidak tersedia, ketidakpastian ditampilkan dan tidak dianggap nol. Kandidat tidak berarti token aman.
 
 Data security harus tersedia. Indikasi honeypot, wash trading atau otoritas mint/freeze yang masih aktif memblokir label kandidat. Pemeriksaan ini terbatas pada data provider, bukan audit keamanan menyeluruh.
 

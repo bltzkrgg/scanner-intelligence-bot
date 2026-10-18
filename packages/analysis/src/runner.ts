@@ -4,7 +4,7 @@ import { z } from "zod";
 import { chainSchema, normalizeAddress, tokenAddressSchema, CHAIN_NAMES, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "@sti/gmgn";
 import { alertConfigSchema, defaultAlertConfig, alertsEnabled, alertInterval, maxAlertsPerScan,
-  evaluateTokenAlert, evaluateVolumeSpike, updateAlertConfig } from "./alert-config.js";
+  evaluateTokenAlert, evaluateVolumeSpike, volumeSpikeConfig, updateAlertConfig } from "./alert-config.js";
 
 export type RunnerAssessment = { score: number | null; candidate: boolean; reasons: string[] };
 
@@ -165,10 +165,11 @@ export class RunnerMonitor {
         return age >= 300000 && age <= 1800000;
       }).slice(-3) ?? [];
       const baselineVolume = previous.length === 3 ? previous.reduce((sum, sample) => sum + sample.volume, 0) / 3 : null;
-      const spike = chain === "sol" && evaluateVolumeSpike(s, next.alertConfig, baselineVolume).passed
-        && (!baseline?.lastSpikeAt || now - Date.parse(baseline.lastSpikeAt) >= next.alertConfig.tokenAlerts.volumeSpikeCooldownMin * 60000);
-      const qualifies = chain === "bsc" ? assessment.candidate : evaluateTokenAlert(s, next.alertConfig).passed;
-      if (chain === "sol" && s.volume5mUsd != null && Number.isFinite(s.volume5mUsd) && s.volume5mUsd >= 0) {
+      const spikeConfig = volumeSpikeConfig(next.alertConfig, chain);
+      const spike = spikeConfig !== null && evaluateVolumeSpike(s, next.alertConfig, baselineVolume).passed
+        && (!baseline?.lastSpikeAt || now - Date.parse(baseline.lastSpikeAt) >= spikeConfig.volumeSpikeCooldownMin * 60000);
+      const qualifies = evaluateTokenAlert(s, next.alertConfig).passed;
+      if (spikeConfig && s.volume5mUsd != null && Number.isFinite(s.volume5mUsd) && s.volume5mUsd >= 0) {
         if (!baseline) {
           baseline = { chain, mint, samples: [], lastObservedAt: s.observedAt, lastSpikeAt: null };
           next.volumeBaselines.push(baseline);
@@ -194,7 +195,7 @@ export class RunnerMonitor {
           chain, mint, symbol: s.symbol, firstSeenAt: s.observedAt, lastSeenAt: s.observedAt,
           initialPrice: s.priceUsd!, latestPrice: s.priceUsd!, peakPrice: s.priceUsd!,
           maxDrawdownPct: 0, score: assessment.score, candidate: true, observations: 1,
-          ...details, qualification: spike && !qualifies ? "spike" : chain === "bsc" ? "legacy" : "configured",
+          ...details, qualification: spike && !qualifies ? "spike" : "configured",
           liquidityUsd: s.liquidityUsd, marketCapUsd: s.marketCapUsd,
           riskNotes: s.dataWarnings ?? [],
           reached2xAt: null, reached5xAt: null
@@ -263,11 +264,11 @@ export class RunnerMonitor {
     } finally { this.delivering = false; }
   }
 
-  async cycle(options: { scheduled?: boolean; now?: number; fallbackIntervalSec?: number } = {}): Promise<Chain[]> {
+  async cycle(options: { scheduled?: boolean; now?: number } = {}): Promise<Chain[]> {
     if (!this.active || this.cycling) return [];
     const now = options.now ?? Date.now();
     const chains = this.chains.filter((chain) => alertsEnabled(this.state.alertConfig, chain) && (!options.scheduled
-      || now - Date.parse(this.state.chainPolledAt[chain] ?? "1970-01-01T00:00:00.000Z") >= alertInterval(this.state.alertConfig, chain, options.fallbackIntervalSec ?? 300) * 1000));
+      || now - Date.parse(this.state.chainPolledAt[chain] ?? "1970-01-01T00:00:00.000Z") >= alertInterval(this.state.alertConfig, chain) * 1000));
     if (!chains.length) return [];
     this.cycling = true;
     const polledAt: Partial<Record<Chain, string>> = {};

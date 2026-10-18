@@ -213,7 +213,7 @@ Mode data: MOCK / data contoh, bukan data pasar aktual.
 
 Kirim CA langsung. Alamat 0x akan meminta pilihan BSC atau RH.
 Menu: /start, /scan, /help, /status, /chatid, /runner, /runners.
-Runner: NONAKTIF. Interval Solana/RH: /getconfig; BSC: 300 detik.
+Runner: NONAKTIF. Interval Solana/BSC/RH: /getconfig.
 Notifikasi runner: NONAKTIF; isi TELEGRAM_RUNNER_CHAT_ID. Antrean: 0.
 Smart wallet bank sendiri dan Discord belum aktif.
 ```
