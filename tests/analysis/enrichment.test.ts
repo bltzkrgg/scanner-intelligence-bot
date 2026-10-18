@@ -179,7 +179,7 @@ describe("provider transport and holder analysis", () => {
     const failing = vi.fn(async () => new Response("secret token https://secret.example", { status: 429,
       headers: { "retry-after": "600" } })) as unknown as typeof fetch;
     const denied = new ProviderHttp("Test", "https://example.test", {}, 300000, failing);
-    await expect(denied.request("/a")).rejects.toThrow("Test: query gagal");
+    await expect(denied.request("/a")).rejects.toThrow("Test: HTTP 429: rate limit");
     await expect(denied.request("/b")).rejects.toThrow("cooldown");
     expect(failing).toHaveBeenCalledTimes(1);
   });

@@ -72,6 +72,8 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
       : event.kind === "spike" ? []
       : ["Kelipatan harga teramati saat query; bukan target atau ATH."]),
     ...(notes.length ? ["", "<b>Catatan Risiko</b>", ...notes] : []), "",
+    ...(i && Object.keys(i.unavailable).length ? ["<b>Data Belum Tersedia</b>",
+      ...Object.entries(i.unavailable).map(([field, reason]) => escapeHtml(`${field === "fomo" ? "FOMO Top 100" : field === "developer" ? "Developer" : "Linked funding"}: ${clip(reason, 140)}`)), ""] : []),
     "<b>CA</b>", escapeHtml(r.mint)
   ].join("\n");
 }

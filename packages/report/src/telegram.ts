@@ -82,7 +82,8 @@ function intelligenceSummary(s: MarketSnapshot, detailed = false): string[] {
       `Holder teramati (maks. 100 wallet): ${percent(i.top100ObservedPct)} supply`,
       `Kelompok pendanaan terbesar teramati: ${percent(i.linkedFundingPct)} supply; bukan bukti satu pemilik.`,
       `Top wallet: ${i.topHolderPcts.slice(0, 5).map((p) => percent(p)).join(" • ") || "belum tersedia"}`,
-      `Sumber enrichment: ${i.sources.join(", ") || "belum tersedia"}`
+      `Sumber enrichment: ${i.sources.join(", ") || "belum tersedia"}`,
+      ...Object.entries(i.unavailable).map(([field, reason]) => `Data ${field}: ${clip(reason, 160)}`)
     ] : [])
   ];
   return ["*Intelligence*", ...lines.map(escapeMarkdown), ""];

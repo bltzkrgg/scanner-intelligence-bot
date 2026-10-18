@@ -37,6 +37,21 @@ pm2 restart ecosystem.config.cjs --only scanner-telegram --update-env
 
 `gmgn:check` sekarang menampilkan snapshot gabungan, sumber yang berhasil dan warning. Tidak mencetak key. Gunakan token Solana nyata; tes API berbayar mengonsumsi kuota. Cadangkan `data/runners.json` sebelum upgrade. Snapshot antrean lama mendapat enrichment null, bukan diisi memakai data terbaru.
 
+### Mengapa Field Masih N/A?
+
+Key terisi hanya mengaktifkan request, bukan menjamin akses/kuota atau data token. Jalankan diagnostik dari direktori repository server:
+
+```bash
+pnpm providers:check sol <CA>
+# atau: pnpm providers:check rh <CA>
+```
+
+Output berisi flag aktif/nonaktif, boolean keberadaan key (bukan nilainya), sumber yang berhasil, dan alasan field pada `unavailable`. HTTP 401 dibedakan dari 402 (kredit), 403 (izin/paket/IP), 429 (rate limit), timeout, respons bukan JSON dan format parser tidak cocok. Error parser hanya mencantumkan nama field yang diizinkan, tidak menampilkan nilai mentah. FOMO leaderboard kedaluwarsa atau holder fallback tidak dianggap data live. MadeOnSol memerlukan alamat deployer serta total deploy/bond yang tersedia; key valid saja tidak mengisi data yang belum diindeks.
+
+Wallets dan Linked funding memerlukan `GMGN_HOLDER_ANALYSIS_ENABLED=true`. Tanpa flag ini query holder tidak dijalankan, sekalipun key lain lengkap. Bila GMGN tidak memberikan `native_transfer.from_address` yang valid, Linked funding tetap N/A; metadata funding kosong tidak lagi menggugurkan daftar wallet yang valid. Alasan per field tampil pada detail risiko dan alert baru. Pesan lama tidak diperbarui otomatis.
+
+Setelah mengubah env, restart lewat `pm2 restart ecosystem.config.cjs --only scanner-telegram --update-env`, bukan hanya mengedit file. CLI check membaca `.env` baru, sementara proses PM2 lama bisa masih memakai env lama. Kirim output diagnostik bila perlu bantuan, jangan `.env`, header auth atau key. Perintah diagnostik tetap membutuhkan GMGN yang berfungsi; flag konfigurasi dicetak sebelum query sehingga tetap bisa diperiksa jika GMGN gagal.
+
 ## Pemetaan
 
 | Provider | Integrasi aktif | Jaringan |

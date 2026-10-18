@@ -2,7 +2,7 @@ import { z } from "zod";
 import { normalizeAddress, base58AddressSchema, evmAddressSchema, tokenIntelligenceSchema,
   type AppConfig, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "./types.js";
-import { ProviderHttp } from "./http.js";
+import { ProviderHttp, ProviderDataError, providerFailureReason } from "./http.js";
 
 const numeric = z.preprocess((v) => v === null || v === undefined || v === "" ? null : typeof v === "string" ? Number(v) : v,
   z.number().finite().nullable()).optional();
@@ -46,16 +46,22 @@ export class EnrichedAdapter implements GmgnAdapter {
     if (normalizeAddress(s.mint, chain) !== mint || (s.chain && s.chain !== chain)) throw new Error("Identitas snapshot tidak sesuai.");
     s.intelligence = tokenIntelligenceSchema.parse(s.intelligence ?? {});
     s.dataWarnings = [...(s.dataWarnings ?? [])];
+    if (!this.fomo) s.intelligence.unavailable.fomo = !this.config.fomoEnabled ? "FOMO_ENABLED=false" : "FOMO_API_KEY kosong pada proses ini";
+    if (!this.made) s.intelligence.unavailable.developer = !this.config.madeonsolEnabled ? "MADEONSOL_ENABLED=false" : "MADEONSOL_API_KEY kosong pada proses ini";
+    else if (chain === "bsc") s.intelligence.unavailable.developer = "MadeOnSol developer BSC belum didukung";
     // Keep provider failures isolated; no enrichment can erase a base security block.
     if (chain === "sol" && this.tracker) await this.optional(s, "Solana Tracker", () => this.trackerToken(s, mint, options?.forceRefresh));
     if (chain === "sol" && this.helius) await this.optional(s, "Helius", () => this.authorities(s, mint, options?.forceRefresh));
     if (chain === "sol" && this.made && s.intelligence.deployer) {
-      await this.optional(s, "MadeOnSol", () => this.developer(s, s.intelligence!.deployer!, options?.forceRefresh));
-    } else if (chain === "sol" && this.made) s.dataWarnings.push("MadeOnSol: alamat deployer belum tersedia.");
-    if (chain === "robinhood" && this.made) {
-      await this.optional(s, "MadeOnSol", () => this.robinhoodDeveloper(s, mint, options?.forceRefresh));
+      await this.optional(s, "MadeOnSol", () => this.developer(s, s.intelligence!.deployer!, options?.forceRefresh), "developer");
+    } else if (chain === "sol" && this.made) {
+      s.intelligence.unavailable.developer = "alamat deployer belum tersedia dari GMGN/Tracker";
+      s.dataWarnings.push("MadeOnSol: alamat deployer belum tersedia.");
     }
-    if (this.fomo) await this.optional(s, "FOMO", () => this.fomoHolders(s, mint, chain, options?.forceRefresh));
+    if (chain === "robinhood" && this.made) {
+      await this.optional(s, "MadeOnSol", () => this.robinhoodDeveloper(s, mint, options?.forceRefresh), "developer");
+    }
+    if (this.fomo) await this.optional(s, "FOMO", () => this.fomoHolders(s, mint, chain, options?.forceRefresh), "fomo");
     return s;
   }
 
@@ -67,9 +73,13 @@ export class EnrichedAdapter implements GmgnAdapter {
     return [...new Set(parsed.data.map((r) => r.mint))].slice(0, 10);
   }
 
-  private async optional(s: MarketSnapshot, name: string, work: () => Promise<void>): Promise<void> {
+  private async optional(s: MarketSnapshot, name: string, work: () => Promise<void>, field?: "developer" | "fomo"): Promise<void> {
     try { await work(); s.intelligence!.sources.push(name); }
-    catch { s.dataWarnings!.push(`${name}: enrichment tidak tersedia atau respons tidak valid.`); }
+    catch (error) {
+      const reason = providerFailureReason(name, error);
+      s.dataWarnings!.push(reason);
+      if (field) s.intelligence!.unavailable[field] = reason;
+    }
   }
 
   private async trackerToken(s: MarketSnapshot, mint: string, force = false): Promise<void> {
@@ -111,8 +121,11 @@ export class EnrichedAdapter implements GmgnAdapter {
       total_tokens_deployed: count, total_bonded: count }) }).parse(
       await this.made!.request(`/deployer-hunter/${wallet}`, undefined, force));
     const d = data.deployer;
-    if (d.wallet_address !== wallet || d.total_tokens_deployed == null || d.total_bonded == null
-      || d.total_bonded > d.total_tokens_deployed) throw new Error("Invalid deployer totals");
+    if (d.wallet_address !== wallet) throw new ProviderDataError("MadeOnSol: identitas deployer berbeda dari permintaan.");
+    if (d.total_tokens_deployed == null || d.total_bonded == null) {
+      throw new ProviderDataError("MadeOnSol: total_tokens_deployed/total_bonded belum tersedia pada respons.");
+    }
+    if (d.total_bonded > d.total_tokens_deployed) throw new ProviderDataError("MadeOnSol: total bonded melebihi total deployed.");
     s.developerTokenCount = d.total_tokens_deployed;
     s.intelligence!.developerBondedCount = d.total_bonded;
     // Documentation uses both 0..1 and 0..100 bonding_rate: derive from explicit counts instead.
@@ -171,12 +184,17 @@ export class EnrichedAdapter implements GmgnAdapter {
       rank: z.number().int().positive(), userId: z.string().min(1), handle: z.string().min(1)
     })).max(150) }).parse(await this.fomo!.request(`/v2/leaderboard/${window}?limit=100`, undefined, force));
     const age = Date.now() - Date.parse(board.capturedAt);
-    if (age > 15 * 60000 || age < -60000) throw new Error("Stale leaderboard");
+    if (age > 15 * 60000 || age < -60000) throw new ProviderDataError("FOMO: timestamp leaderboard kedaluwarsa (>15 menit) atau clock server tidak sesuai.");
+    const rawHolders = await this.fomo!.request(`/token/${mint}/holders?chain=${chain === "sol" ? "solana" : chain}&limit=100`, undefined, force);
+    const availability = z.object({ available: z.boolean().optional(), scope: z.string().optional(),
+      stale: z.boolean().optional(), source: z.string().optional() }).parse(rawHolders);
+    if (availability.available === false) throw new ProviderDataError("FOMO: provider belum mempunyai data holder token/chain ini.");
+    if (availability.stale || availability.source === "live-fomo-stale") throw new ProviderDataError("FOMO: daftar holder merupakan fallback kedaluwarsa.");
+    if (availability.scope === "tracked-traders") throw new ProviderDataError("FOMO: hanya snapshot tracked-traders, bukan daftar holder live yang dapat diverifikasi.");
     const holders = z.object({ scope: z.literal("live-top-holders"), stale: z.boolean().optional(),
       available: z.boolean().optional(), source: z.string().optional(), holders: z.array(z.object({
       handle: z.string(), amount: nonnegative
-    })).max(500) }).parse(await this.fomo!.request(`/token/${mint}/holders?chain=${chain === "sol" ? "solana" : chain}&limit=100`, undefined, force));
-    if (holders.stale || holders.available === false || holders.source === "live-fomo-stale") throw new Error("Stale holders");
+    })).max(500) }).parse(rawHolders);
     const holding = new Set(holders.holders.filter((h) => h.amount != null && h.amount > 0).map((h) => h.handle.toLowerCase()));
     const ranked = [...new Map(board.traders.filter((r) => r.rank <= 100).map((r) => [r.userId, r])).values()];
     const matched = ranked.filter((r) => holding.has(r.handle.toLowerCase())).length;

@@ -88,7 +88,8 @@ export const tokenIntelligenceSchema = z.object({
     total: z.number().int().nonnegative(), complete: z.boolean(),
     capturedAt: z.string().datetime()
   }).nullable().default(null),
-  sources: z.array(z.string()).default([])
+  sources: z.array(z.string()).default([]),
+  unavailable: z.partialRecord(z.enum(["fomo", "developer", "linkedFunding"]), z.string().max(240)).default({})
 });
 export type TokenIntelligence = z.infer<typeof tokenIntelligenceSchema>;
 

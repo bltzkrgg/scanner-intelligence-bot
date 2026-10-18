@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import { normalizeAddress, tokenAddressSchema, tokenIntelligenceSchema, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "./types.js";
+import { ProviderDataError, providerFailureReason } from "./http.js";
 
 const execFileAsync = promisify(execFile);
 const number = z.preprocess((value) => {
@@ -179,8 +180,12 @@ export class CliGmgnAdapter implements GmgnAdapter {
     if (this.holderAnalysis) {
       try {
         applyHolderAnalysis(snapshot, await this.request(["token", "holders", "--chain", chain, "--address", mint, "--limit", "100", "--raw"]), chain);
-      } catch { snapshot.dataWarnings!.push("GMGN: analisis top holder belum tersedia."); }
-    }
+      } catch (error) {
+        const reason = providerFailureReason("GMGN holder", error);
+        snapshot.dataWarnings!.push(reason);
+        snapshot.intelligence!.unavailable.linkedFunding = reason;
+      }
+    } else snapshot.intelligence!.unavailable.linkedFunding = "GMGN_HOLDER_ANALYSIS_ENABLED=false";
     if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value!);
     this.cache.set(`${chain}:${mint}`, { until: Date.now() + 10_000, value: snapshot });
     return snapshot;
@@ -195,20 +200,21 @@ export class CliGmgnAdapter implements GmgnAdapter {
 export function applyHolderAnalysis(s: MarketSnapshot, input: unknown, chain: Chain): void {
   const holder = z.object({ address: tokenAddressSchema, amount_percentage: ratio,
     addr_type: z.number().int().optional(),
-    native_transfer: z.object({ from_address: tokenAddressSchema.nullable().optional() }).nullable().optional()
+    native_transfer: z.unknown().optional()
   });
   const data = z.union([z.array(holder), z.object({ list: z.array(holder) })]).parse(unwrapGmgn(input));
   const rows = Array.isArray(data) ? data : data.list;
-  if (!rows.length || rows.length > 100) throw new Error("Empty/oversized holders");
+  if (!rows.length || rows.length > 100) throw new ProviderDataError("GMGN: data holder kosong atau melebihi batas 100.");
   const unique = [...new Map(rows.map((r) => [normalizeAddress(r.address, chain), r])).values()];
   const observed = unique.filter((r) => r.addr_type === 0 && normalizeAddress(r.address, chain) !== s.mint && r.amount_percentage != null);
   const sum = observed.reduce((n, r) => n + r.amount_percentage! * 100, 0);
-  if (sum > 100.001 || !observed.length) throw new Error("Invalid holder coverage");
+  if (sum > 100.001 || !observed.length) throw new ProviderDataError("GMGN: cakupan holder normal belum dapat diverifikasi.");
   const groups = new Map<string, { count: number; pct: number }>();
   for (const row of observed) {
-    const from = row.native_transfer?.from_address;
-    if (!from) continue;
-    const key = normalizeAddress(from, chain);
+    const funding = z.object({ from_address: tokenAddressSchema }).safeParse(row.native_transfer);
+    if (!funding.success) continue;
+    let key: string;
+    try { key = normalizeAddress(funding.data.from_address, chain); } catch { continue; }
     const group = groups.get(key) ?? { count: 0, pct: 0 };
     group.count++; group.pct += row.amount_percentage! * 100; groups.set(key, group);
   }
@@ -216,6 +222,8 @@ export function applyHolderAnalysis(s: MarketSnapshot, input: unknown, chain: Ch
   intel.topHolderPcts = observed.map((r) => r.amount_percentage! * 100).sort((a, b) => b - a);
   intel.top100ObservedPct = Math.min(100, sum);
   intel.linkedFundingPct = groups.size ? Math.min(100, Math.max(0, ...[...groups.values()].filter((g) => g.count >= 2).map((g) => g.pct))) : null;
+  if (!groups.size) intel.unavailable.linkedFunding = "GMGN tidak menyertakan sumber pendanaan holder yang valid";
+  else delete intel.unavailable.linkedFunding;
   // Observed coverage is not a full-supply audit or proof of common ownership.
 }
 
