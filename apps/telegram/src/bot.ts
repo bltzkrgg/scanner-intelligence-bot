@@ -4,9 +4,10 @@ import { createGmgnAdapter } from "@sti/gmgn";
 import { loadConfig, logger } from "@sti/shared";
 import { startCommand } from "./commands/start.js";
 import { registerScanHandlers } from "./handlers/scan.js";
-import { configureTelegramMenu, registerUtilityCommands, sendStartupNotification, sendRunnerNotifications } from "./lifecycle.js";
+import { registerUtilityCommands } from "./lifecycle.js";
 import { registerRunnerCommands } from "./handlers/runner.js";
 import { registerConfigCommands } from "./handlers/config.js";
+import { runTelegramRuntime } from "./runtime.js";
 
 const config = loadConfig();
 
@@ -36,40 +37,4 @@ bot.catch((error) => {
   logger.error({ error }, "Telegram bot error");
 });
 
-try {
-  await configureTelegramMenu(bot);
-} catch {
-  logger.warn("Telegram menu setup failed; commands remain available by typing them");
-}
-
-let stopping = false;
-let timer: ReturnType<typeof setTimeout> | undefined;
-let cycle: Promise<void> | undefined;
-async function tick(): Promise<void> {
-  if (stopping) return;
-  cycle = runner.cycle({ scheduled: true })
-    .then((chains) => sendRunnerNotifications(bot, runner, config, chains));
-  try { await cycle; } catch { logger.warn("Runner cycle or state write failed"); }
-  if (!stopping) timer = setTimeout(() => { void tick(); }, 1000);
-}
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, () => {
-    stopping = true;
-    runner.stop();
-    if (timer) clearTimeout(timer);
-    if (bot.isRunning()) void bot.stop();
-  });
-}
-
-await bot.start({
-  onStart: async () => {
-    logger.info("Telegram polling starting");
-    try {
-      await sendStartupNotification(bot, config, runner);
-    } catch {
-      logger.warn("Startup notification failed; check TELEGRAM_STARTUP_CHAT_ID and bot send permissions");
-    }
-    if (config.runnerEnabled && !stopping) void tick();
-  }
-});
-await cycle;
+await runTelegramRuntime(bot, runner, config);

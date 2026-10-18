@@ -1,6 +1,6 @@
 import type { Bot } from "grammy";
 import { CHAIN_NAMES, type AppConfig, type Chain } from "@sti/shared";
-import { formatRunnerNotification, type RunnerMonitor } from "@sti/analysis";
+import { alertsEnabled, alertInterval, formatRunnerNotification, type RunnerMonitor } from "@sti/analysis";
 
 export function statusMessage(config: AppConfig, runner?: RunnerMonitor): string {
   return [
@@ -59,10 +59,53 @@ export async function sendRunnerNotifications(bot: Bot, runner: RunnerMonitor, c
   }, chains);
 }
 
+export function formatStartupNotification(config: AppConfig, runner?: RunnerMonitor, now = Date.now()): string {
+  const state = runner?.snapshot();
+  return ["TOKEN INTELLIGENCE | ONLINE", "", "Bot mulai berjalan dan siap menerima CA.", "",
+    `Jaringan: ${config.enabledChains.map((chain) => CHAIN_NAMES[chain]).join(" | ")}`,
+    config.gmgnProvider === "cli" ? "Mode data: GMGN Live" : "Mode data: MOCK / data contoh, bukan data pasar aktual.",
+    `Runner: ${runner?.active ? "Aktif" : "Nonaktif"}`, "Alert jaringan:",
+    ...config.enabledChains.map((chain) => `${CHAIN_NAMES[chain]}: ${runner?.active && state && alertsEnabled(state.alertConfig, chain) ? "Aktif" : "Nonaktif"}${state ? ` | polling ${alertInterval(state.alertConfig, chain)} detik` : ""}`),
+    `Tujuan alert runner: ${config.telegramRunnerChatId ? "dikonfigurasi" : "BELUM DIISI; alert runner tidak dikirim"}`,
+    "", `Waktu mulai: ${formatLifecycleTime(now)}`, "",
+    "Status proses aktif. Koneksi GMGN belum diverifikasi sebelum query berhasil."
+  ].join("\n");
+}
+
+export function formatLifecycleTime(now: number): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "medium" }).format(now) + " WIB";
+}
+
+export function formatShutdownNotification(reason: string, startedAt: number, saved: boolean, now = Date.now()): string {
+  const minutes = Math.floor(Math.max(0, now - startedAt) / 60000);
+  return ["TOKEN INTELLIGENCE | OFFLINE", "", "Proses bot sedang dihentikan.",
+    "Scan CA, pemantauan runner, dan pengiriman alert tidak tersedia selama bot berhenti.", "",
+    `Alasan: ${reason}`, `Uptime: ${Math.floor(minutes / 60)} jam ${minutes % 60} menit`,
+    `Waktu berhenti: ${formatLifecycleTime(now)}`, "",
+    saved ? "Status penyimpanan: snapshot state terakhir berhasil disimpan. Observasi yang sebelumnya gagal tidak dipulihkan."
+      : "Status penyimpanan: checkpoint terakhir GAGAL; periksa log dan file state."
+  ].join("\n");
+}
+
+export async function sendShutdownNotification(bot: Bot, config: AppConfig, reason: string, startedAt: number, saved: boolean): Promise<void> {
+  if (!config.telegramStartupChatId) return;
+  await sendStatusMessage(bot, config.telegramStartupChatId, formatShutdownNotification(reason, startedAt, saved));
+}
+
+export async function sendStatusMessage(bot: Bot, chatId: string, text: string): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    // grammY's Node polyfill typings differ from the native, compatible signal.
+    const signal = controller.signal as unknown as NonNullable<Parameters<typeof bot.api.sendMessage>[3]>;
+    await bot.api.sendMessage(chatId, text, {}, signal);
+  } finally { clearTimeout(timer); }
+}
+
 export async function sendStartupNotification(bot: Bot, config: AppConfig, runner?: RunnerMonitor): Promise<void> {
   if (!config.telegramStartupChatId) return;
-  await bot.api.sendMessage(
+  await sendStatusMessage(bot,
     config.telegramStartupChatId,
-    ["BOT MULAI BERJALAN", statusMessage(config, runner)].join("\n\n")
+    formatStartupNotification(config, runner)
   );
 }

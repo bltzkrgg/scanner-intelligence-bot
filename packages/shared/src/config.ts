@@ -15,9 +15,18 @@ const configSchema = z.object({
   runnerEnabled: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   runnerIntervalSeconds: z.coerce.number().int().min(60).max(86400).default(300),
   runnerStateFile: z.string().min(1).default("data/runners.json"),
+  botShutdownTimeoutSec: z.coerce.number().int().min(10).max(120).default(25),
+  botHealthEnabled: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  botHealthHost: z.string().min(1).default("127.0.0.1"),
+  botHealthPort: z.coerce.number().int().min(1).max(65535).default(3101),
+  botHealthToken: z.string().optional(),
   telegramAdminIds: z.string().regex(/^(?:[1-9]\d*(?:,[1-9]\d*)*)?$/).default("")
     .transform((value) => value ? value.split(",") : []),
   logLevel: z.string().default("info")
+}).superRefine((config, ctx) => {
+  if (config.botHealthEnabled && (!config.botHealthToken || config.botHealthToken.length < 32)) {
+    ctx.addIssue({ code: "custom", path: ["botHealthToken"], message: "BOT_HEALTH_TOKEN minimal 32 karakter jika health endpoint aktif." });
+  }
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -35,6 +44,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     runnerEnabled: env.RUNNER_ENABLED,
     runnerIntervalSeconds: env.RUNNER_INTERVAL_SECONDS,
     runnerStateFile: env.RUNNER_STATE_FILE,
+    botShutdownTimeoutSec: env.BOT_SHUTDOWN_TIMEOUT_SEC,
+    botHealthEnabled: env.BOT_HEALTH_ENABLED,
+    botHealthHost: env.BOT_HEALTH_HOST,
+    botHealthPort: env.BOT_HEALTH_PORT,
+    botHealthToken: env.BOT_HEALTH_TOKEN,
     telegramAdminIds: env.TELEGRAM_ADMIN_IDS,
     logLevel: env.LOG_LEVEL
   });

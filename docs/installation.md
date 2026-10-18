@@ -187,7 +187,7 @@ Pada mode mock semua CA valid hanya menguji alur pesan. Tidak ada penilaian CA d
 
 Untuk menerima CA langsung di grup, nonaktifkan privacy mode melalui `/setprivacy` pada BotFather, pilih bot, lalu Disable. Jika diperlukan, keluarkan dan tambahkan bot kembali ke grup. Pada chat pribadi, tidak perlu mengubah privacy mode.
 
-Bot memakai Telegram long polling untuk menerima pesan; tidak ada polling harga token. Jalankan satu proses per token bot.
+Bot memakai Telegram long polling untuk menerima pesan. Worker runner, jika diaktifkan, melakukan polling data token secara terpisah. Jalankan satu proses per token bot.
 
 API tidak perlu aktif karena bot memanggil scanner langsung. Terminal harus tetap terbuka sampai service dipasang. Tekan `Ctrl+C` untuk berhenti. Pengujian Telegram sungguhan membutuhkan token dan internet; test lokal tidak memverifikasi autentikasi Telegram Anda.
 
@@ -201,28 +201,32 @@ Notifikasi startup bersifat opsional dan dikirim sekali setiap proses bot mulai 
 2. Isi ID yang dibalas bot pada `.env`, misalnya `TELEGRAM_STARTUP_CHAT_ID=123456789`.
 3. Untuk tujuan grup, kirim `/chatid` di grup tempat bot berada dan gunakan ID negatif yang diberikan. Pastikan bot memiliki izin mengirim pesan.
 4. Restart bot melalui terminal atau systemd. Bot mengirim satu pesan ke tujuan tersebut saat memulai penerimaan update.
-5. Kosongkan `TELEGRAM_STARTUP_CHAT_ID` untuk menonaktifkan notifikasi.
+5. Tujuan yang sama juga menerima OFFLINE saat bot dihentikan normal. Kosongkan `TELEGRAM_STARTUP_CHAT_ID` untuk menonaktifkan keduanya.
 
 Contoh isi notifikasi pada mode mock:
 
 ```text
-BOT MULAI BERJALAN
+TOKEN INTELLIGENCE | ONLINE
 
-TOKEN INTELLIGENCE
-Status: proses bot aktif
-Jaringan: Solana, BSC, Robinhood Chain (RH)
+Bot mulai berjalan dan siap menerima CA.
+Jaringan: Solana | BSC | Robinhood Chain (RH)
 Mode data: MOCK / data contoh, bukan data pasar aktual.
+Runner: Nonaktif
+Alert jaringan:
+Solana: Nonaktif | polling 60 detik
+BSC: Nonaktif | polling 60 detik
+Robinhood Chain (RH): Nonaktif | polling 60 detik
+Tujuan alert runner: BELUM DIISI; alert runner tidak dikirim
 
-Kirim CA langsung. Alamat 0x akan meminta pilihan BSC atau RH.
-Menu: /start, /scan, /help, /status, /chatid, /runner, /runners.
-Runner: NONAKTIF. Interval Solana/BSC/RH: /getconfig.
-Notifikasi runner: NONAKTIF; isi TELEGRAM_RUNNER_CHAT_ID. Antrean: 0.
-Smart wallet bank sendiri dan Discord belum aktif.
+Waktu mulai: <waktu WIB>
+Status proses aktif. Koneksi GMGN belum diverifikasi sebelum query berhasil.
 ```
 
 Pada mode `cli`, baris mode menyatakan GMGN CLI dan bahwa koneksi provider belum diverifikasi oleh status ini. Notifikasi menunjukkan proses mulai berjalan, bukan hasil pengujian kesehatan provider. Kegagalan pengiriman notifikasi dicatat sebagai warning dan tidak menghentikan bot.
 
 Untuk aktivasi runner, menjalankan dengan PM2, mengubah filter melalui `/setconfig`, dan contoh pesan kandidat/spike/milestone, lanjutkan ke [panduan pengaturan runner](runner-config.md).
+
+Untuk OFFLINE, batas shutdown/kill timeout PM2, dan monitor heartbeat independen bagi kegagalan mendadak, ikuti [panduan lifecycle](bot-lifecycle.md). Notifikasi saat SIGKILL atau server mati tidak bisa dijamin oleh proses bot itu sendiri.
 
 ## 8. GMGN Live (Opsional)
 

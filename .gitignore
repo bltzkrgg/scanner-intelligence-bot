@@ -6,6 +6,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.monitor.example
 research/data/*.csv
 research/data/*.parquet
 coverage/

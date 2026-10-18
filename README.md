@@ -4,6 +4,8 @@ Scanner token Solana, BSC, dan Robinhood Chain (RH) melalui Telegram dan HTTP AP
 
 Laporan Telegram kini ringkas, dengan CA monospace, angka K/M/B, waktu WIB, dan tombol Refresh, Detail Risiko, Status Runner, GMGN, Explorer, serta Salin CA. Lihat [panduan laporan dan tombol](docs/telegram-reports.md). Refresh memperbarui pesan yang sama melalui query provider baru, bukan sekadar mengganti timestamp.
 
+Notifikasi ONLINE/OFFLINE memakai chat startup yang sama. Monitor heartbeat independen tersedia untuk gangguan proses/polling; jalankan di mesin lain untuk mendeteksi server bot mati. Ikuti [panduan lifecycle dan monitor PM2](docs/bot-lifecycle.md), termasuk secret health dan `.env.monitor`.
+
 **Status:** scan live dan pemantauan runner pada ketiga jaringan, dengan notifikasi Telegram untuk kandidat baru dan milestone 2x/5x teramati. Dukungan data aktual mengikuti akses GMGN. Mode default `mock` hanya pesan demo, tanpa skor atau win rate. Field tidak tersedia bernilai `null`. Skor historis belum diterbitkan karena benchmark riil belum terpasang.
 
 Untuk mengaktifkan data nyata dan runner, ikuti [panduan live dan runner](docs/live-and-runner.md). Query token dan discovery sudah diuji dengan CLI resmi dan public demo key; untuk penggunaan bot, gunakan API key Anda sendiri.
@@ -63,7 +65,7 @@ Bank smart wallet bersama milik user, Discord, dan Ethereum masih berupa rencana
 | `NODE_ENV` | `development` | Label environment |
 | `PORT` | `3000` | Port API |
 | `TELEGRAM_BOT_TOKEN` | kosong | Wajib untuk proses Telegram |
-| `TELEGRAM_STARTUP_CHAT_ID` | kosong | Opsional: tujuan satu notifikasi setiap proses bot dimulai |
+| `TELEGRAM_STARTUP_CHAT_ID` | kosong | Tujuan ONLINE setiap startup dan OFFLINE saat penghentian normal |
 | `TELEGRAM_RUNNER_CHAT_ID` | kosong | Tujuan alert kandidat baru dan milestone 2x/5x; terpisah dari startup |
 | `ENABLED_CHAINS` | `sol,bsc,robinhood` | Jaringan scan dan worker yang diaktifkan |
 | `GMGN_PROVIDER` | `mock` | `mock` atau `cli` |
@@ -74,6 +76,10 @@ Bank smart wallet bersama milik user, Discord, dan Ethereum masih berupa rencana
 | `TELEGRAM_ADMIN_IDS` | kosong | User ID admin dipisahkan koma, tanpa spasi |
 | `DATABASE_URL` | contoh URL lokal | Persiapan integrasi persistence |
 | `LOG_LEVEL` | `info` | Level log Pino |
+| `BOT_SHUTDOWN_TIMEOUT_SEC` | `25` | Batas shutdown 10-120 detik; kill timeout supervisor harus lebih lama |
+| `BOT_HEALTH_ENABLED` | `false` | Aktifkan endpoint heartbeat terautentikasi |
+| `BOT_HEALTH_HOST` / `BOT_HEALTH_PORT` | `127.0.0.1` / `3101` | Binding endpoint; default lokal saja |
+| `BOT_HEALTH_TOKEN` | kosong | Secret minimal 32 karakter; wajib jika health aktif |
 
 `.env` diabaikan Git. Simpan token hanya di mesin aplikasi.
 

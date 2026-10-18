@@ -107,6 +107,8 @@ export class RunnerMonitor {
   get active(): boolean { return this.enabled && !this.state.paused && !this.stopped; }
   stop(): void { this.stopped = true; }
 
+  async checkpoint(): Promise<void> { await this.mutate(() => undefined); }
+
   private mutate(update: (next: RunnerState) => void): Promise<void> {
     const task = this.mutations.then(async () => {
       const next = this.snapshot();
