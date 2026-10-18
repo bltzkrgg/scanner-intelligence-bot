@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { IntelligenceScanner } from "../../packages/analysis/src/service.js";
 import { FixtureGmgnAdapter } from "../../packages/gmgn/src/fixture.js";
 import { registerScanHandlers } from "../../apps/telegram/src/handlers/scan.js";
+import { registerUtilityCommands } from "../../apps/telegram/src/lifecycle.js";
+import { loadConfig } from "../../packages/shared/src/config.js";
 
 const mint = "So11111111111111111111111111111111111111112";
 
@@ -22,6 +24,7 @@ function setup() {
     reply(method, payload);
     return { ok: true, result: true } as never;
   });
+  registerUtilityCommands(bot, loadConfig({}));
   registerScanHandlers(bot, scanner);
 
   async function send(text: string, command?: string) {
@@ -38,6 +41,15 @@ function setup() {
 }
 
 describe("Telegram scan routing", () => {
+  it("handles menu commands without invoking the scanner", async () => {
+    const { send, scan, reply } = setup();
+    await send("/help", "/help");
+    await send("/status", "/status");
+    await send("/chatid", "/chatid");
+    expect(scan).not.toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledTimes(3);
+    expect(reply).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ text: "Chat ID: 2" }));
+  });
   it("scans a standalone mint and sends the report", async () => {
     const { send, scan, reply } = setup();
     await send(`  ${mint}  `);

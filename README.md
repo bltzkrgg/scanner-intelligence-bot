@@ -55,12 +55,15 @@ Bank smart wallet bersama, deteksi token runner, Discord, serta dukungan BSC/Eth
 | `NODE_ENV` | `development` | Label environment |
 | `PORT` | `3000` | Port API |
 | `TELEGRAM_BOT_TOKEN` | kosong | Wajib untuk proses Telegram |
+| `TELEGRAM_STARTUP_CHAT_ID` | kosong | Opsional: tujuan satu notifikasi setiap proses bot dimulai |
 | `GMGN_PROVIDER` | `mock` | `mock` atau `cli` |
 | `GMGN_API_KEY` | kosong | Kredensial query CLI live |
 | `DATABASE_URL` | contoh URL lokal | Persiapan integrasi persistence |
 | `LOG_LEVEL` | `info` | Level log Pino |
 
 `.env` diabaikan Git. Simpan token hanya di mesin aplikasi.
+
+Bot mendaftarkan menu perintah Telegram secara otomatis: `/start`, `/scan`, `/help`, `/status`, dan `/chatid`. Bentuk tombol menu mengikuti aplikasi Telegram. Untuk notifikasi startup, kirim `/chatid` ke bot, isi hasilnya pada `TELEGRAM_STARTUP_CHAT_ID`, lalu restart. Lihat [panduan menu dan notifikasi](docs/installation.md#menu-telegram-dan-notifikasi-startup).
 
 ## API
 

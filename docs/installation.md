@@ -98,6 +98,7 @@ NODE_ENV=development
 PORT=3000
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/solana_token_intelligence
 TELEGRAM_BOT_TOKEN=
+TELEGRAM_STARTUP_CHAT_ID=
 GMGN_PROVIDER=mock
 GMGN_API_KEY=
 LOG_LEVEL=info
@@ -144,11 +145,14 @@ Tekan `Ctrl+C` untuk menghentikan API. Jika port sudah dipakai, ubah `PORT` di `
 2. Kirim `/newbot`.
 3. Ikuti arahan untuk nama dan username bot.
 4. Masukkan token yang diberikan ke `TELEGRAM_BOT_TOKEN` dalam `.env` lokal. Jangan kirim token ke chat atau repository.
-5. Opsional: gunakan `/setcommands`, pilih bot, lalu masukkan:
+5. Saat startup, bot otomatis mendaftarkan menu berikut. Jika pendaftaran otomatis gagal, periksa log atau gunakan `/setcommands` di BotFather sebagai alternatif:
 
 ```text
 start - Mulai menggunakan bot
 scan - Analisis alamat mint Solana
+help - Panduan penggunaan
+status - Status bot dan mode data
+chatid - ID chat untuk notifikasi startup
 ```
 
 ## 7. Jalankan Bot dan Uji Laporan
@@ -182,6 +186,35 @@ Untuk menerima CA langsung di grup, nonaktifkan privacy mode melalui `/setprivac
 Bot memakai Telegram long polling untuk menerima pesan; tidak ada polling harga token. Jalankan satu proses per token bot.
 
 API tidak perlu aktif karena bot memanggil scanner langsung. Terminal harus tetap terbuka sampai service dipasang. Tekan `Ctrl+C` untuk berhenti. Pengujian Telegram sungguhan membutuhkan token dan internet; test lokal tidak memverifikasi autentikasi Telegram Anda.
+
+### Menu Telegram dan Notifikasi Startup
+
+Bot memasang tombol menu perintah bawaan Telegram pada chat pribadi. Tampilan ikon dan warna mengikuti client Telegram, bukan gambar khusus. Jika menu belum berubah, buka ulang chat; lihat log jika pendaftaran menu gagal. `/help`, `/status`, dan `/chatid` juga bisa diketik langsung.
+
+Notifikasi startup bersifat opsional dan dikirim sekali setiap proses bot mulai berjalan, termasuk setelah restart service. Notifikasi bukan broadcast ke semua user dan bukan pesan setiap kali user mengetik `/start`. Jika hanya startup pertama sepanjang umur instalasi yang diinginkan, diperlukan penanda tersimpan; perilaku versi ini adalah setiap startup.
+
+1. Jalankan bot, buka chat pribadi, dan kirim `/start` lalu `/chatid`.
+2. Isi ID yang dibalas bot pada `.env`, misalnya `TELEGRAM_STARTUP_CHAT_ID=123456789`.
+3. Untuk tujuan grup, kirim `/chatid` di grup tempat bot berada dan gunakan ID negatif yang diberikan. Pastikan bot memiliki izin mengirim pesan.
+4. Restart bot melalui terminal atau systemd. Bot mengirim satu pesan ke tujuan tersebut saat memulai penerimaan update.
+5. Kosongkan `TELEGRAM_STARTUP_CHAT_ID` untuk menonaktifkan notifikasi.
+
+Contoh isi notifikasi pada mode mock:
+
+```text
+BOT MULAI BERJALAN
+
+SOLANA TOKEN INTELLIGENCE
+Status: proses bot aktif
+Jaringan: Solana
+Mode data: MOCK / data contoh, bukan data pasar aktual.
+
+Kirim satu CA Solana langsung untuk meminta laporan.
+Menu: /start, /scan, /help, /status, /chatid.
+Smart wallet bank, token runner, multichain, dan Discord belum aktif.
+```
+
+Pada mode `cli`, baris mode menyatakan GMGN CLI dan bahwa koneksi provider belum diverifikasi oleh status ini. Notifikasi menunjukkan proses mulai berjalan, bukan hasil pengujian kesehatan provider. Kegagalan pengiriman notifikasi dicatat sebagai warning dan tidak menghentikan bot.
 
 ## 8. GMGN Live (Opsional)
 
@@ -310,6 +343,7 @@ Jangan menjalankan proses terminal dan service systemd dengan token bot yang sam
 | Versi Node tidak didukung pnpm | Muat nvm dan jalankan `nvm use 24` |
 | `.env` tidak ditemukan | Buat file sesuai langkah 3; jalankan dari root repo |
 | Token Telegram wajib diisi | Isi `.env`, restart, cek environment shell yang menimpa nilai |
+| Notifikasi startup tidak terkirim | Isi `TELEGRAM_STARTUP_CHAT_ID`, mulai chat dengan bot terlebih dahulu atau cek izin grup, restart, lalu lihat log |
 | Telegram 401 | Perbaiki token atau buat ulang melalui BotFather |
 | Telegram 409 | Hentikan instance lain; hapus webhook lama jika pernah dikonfigurasi |
 | `EADDRINUSE` | Ubah `PORT` atau hentikan proses Anda yang memakai port itu |
