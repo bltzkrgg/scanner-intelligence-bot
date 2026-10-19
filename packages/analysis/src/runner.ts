@@ -84,7 +84,10 @@ const stateSchema = z.object({
   volumeBaselines: z.array(baselineSchema).max(500).default([]),
   chainPolledAt: z.partialRecord(chainSchema, z.string().datetime()).default({}),
   lastNotificationAt: z.string().datetime().nullable().default(null),
-  lastNotificationError: z.string().nullable().default(null)
+  lastNotificationError: z.string().nullable().default(null),
+  cycleTiming: z.object({ durationMs: z.number().nonnegative(), queriedTokens: z.number().int().nonnegative(),
+    discoveryMs: z.number().nonnegative(), tokenQueryMs: z.number().nonnegative(), maxTokenQueryMs: z.number().nonnegative()
+  }).nullable().default(null)
 });
 export type RunnerRecord = z.infer<typeof recordSchema>;
 export type RunnerState = z.infer<typeof stateSchema>;
@@ -95,7 +98,7 @@ export class RunnerMonitor {
   private state: RunnerState = {
     version: 3, paused: false, lastCycleAt: null, lastError: null, records: [],
     pendingAlerts: [], lastNotificationAt: null, lastNotificationError: null,
-    alertConfig: defaultAlertConfig(), volumeBaselines: [], chainPolledAt: {}
+    alertConfig: defaultAlertConfig(), volumeBaselines: [], chainPolledAt: {}, cycleTiming: null
   };
   private mutations: Promise<unknown> = Promise.resolve();
   private cycling = false;
@@ -247,11 +250,11 @@ export class RunnerMonitor {
     });
   }
 
-  async deliverNotifications(send: (event: RunnerEvent) => Promise<void>, chains: Chain[] = this.chains): Promise<void> {
+  async deliverNotifications(send: (event: RunnerEvent) => Promise<void>, chains: Chain[] = this.chains,
+    counts: Partial<Record<Chain, number>> = {}): Promise<void> {
     if (!this.active || this.delivering) return;
     this.delivering = true;
     try {
-      const counts: Partial<Record<Chain, number>> = {};
       const pending = this.snapshot().pendingAlerts.filter((entry) => chains.includes(entry.record.chain)
         && this.chains.includes(entry.record.chain) && alertsEnabled(this.state.alertConfig, entry.record.chain));
       let sent = 0;
@@ -279,41 +282,62 @@ export class RunnerMonitor {
     } finally { this.delivering = false; }
   }
 
-  async cycle(options: { scheduled?: boolean; now?: number } = {}): Promise<Chain[]> {
+  async cycle(options: { scheduled?: boolean; now?: number; onChainStart?: (chain: Chain) => void;
+    onObservation?: () => Promise<void> } = {}): Promise<Chain[]> {
     if (!this.active || this.cycling) return [];
     const now = options.now ?? Date.now();
     const chains = this.chains.filter((chain) => alertsEnabled(this.state.alertConfig, chain) && (!options.scheduled
       || now - Date.parse(this.state.chainPolledAt[chain] ?? "1970-01-01T00:00:00.000Z") >= alertInterval(this.state.alertConfig, chain) * 1000));
     if (!chains.length) return [];
     this.cycling = true;
+    const started = Date.now();
+    const timing = { durationMs: 0, queriedTokens: 0, discoveryMs: 0, tokenQueryMs: 0, maxTokenQueryMs: 0 };
     const polledAt: Partial<Record<Chain, string>> = {};
     try {
       let hadError = false;
+      const queues = new Map<Chain, string[]>();
       for (const chain of chains) {
         if (!this.active) break;
         if (!alertsEnabled(this.state.alertConfig, chain)) continue;
+        options.onChainStart?.(chain);
         polledAt[chain] = new Date(options.now ?? Date.now()).toISOString();
         let discovered: string[] = [];
+        const discoveryStarted = Date.now();
         try { discovered = await this.adapter.discoverTokens?.(chain) ?? []; }
         catch { hadError = true; }
+        timing.discoveryMs += Date.now() - discoveryStarted;
         const tracked = this.state.records.filter((entry) => entry.chain === chain && Date.now() - Date.parse(entry.firstSeenAt) < 7 * 86400_000);
-        const addresses = [...new Set([...tracked.map((entry) => entry.mint), ...discovered])];
-        for (const mint of addresses) {
-          if (!this.active || !alertsEnabled(this.state.alertConfig, chain)) break;
+        queues.set(chain, [...new Set([...discovered, ...tracked.map((entry) => entry.mint)])]);
+      }
+      // Alternate networks rather than finishing one chain's entire tracked backlog first.
+      const depth = Math.max(0, ...[...queues.values()].map((queue) => queue.length));
+      for (let index = 0; index < depth && this.active; index++) {
+        for (const [chain, addresses] of queues) {
+          if (!this.active) break;
+          const mint = addresses[index];
+          if (!mint || !alertsEnabled(this.state.alertConfig, chain)) continue;
+          const queryStarted = Date.now();
+          timing.queriedTokens++;
           try {
             const snapshot = await this.adapter.getTokenSnapshot(mint, chain);
             if (snapshot.chain && snapshot.chain !== chain) throw new Error("Chain mismatch");
             await this.observe({ ...snapshot, chain });
           } catch { hadError = true; }
+          const elapsed = Date.now() - queryStarted;
+          timing.tokenQueryMs += elapsed; timing.maxTokenQueryMs = Math.max(timing.maxTokenQueryMs, elapsed);
+          // Observations are already persisted; a delivery failure must not discard them or stop discovery.
+          try { await options.onObservation?.(); } catch { /* The durable outbox remains pending. */ }
         }
       }
       await this.mutate((next) => {
         Object.assign(next.chainPolledAt, polledAt);
         next.lastCycleAt = new Date().toISOString();
+        next.cycleTiming = { ...timing, durationMs: Date.now() - started };
         next.lastError = hadError ? "Sebagian query discovery/token gagal. Periksa GMGN; data lama tidak dianggap data baru." : null;
       });
     } catch {
       await this.mutate((next) => {
+        next.cycleTiming = { ...timing, durationMs: Date.now() - started };
         next.lastError = "Siklus runner gagal. Periksa GMGN/izin file; data lama tidak dianggap data baru.";
       });
     } finally { this.cycling = false; }

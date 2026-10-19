@@ -5,6 +5,8 @@ import { runnerNotificationKeyboard } from "./handlers/report-keyboard.js";
 
 type LifecycleDelivery = { event: string; result: "terkirim" | "gagal" | "nonaktif"; error?: string };
 const deliveries = new WeakMap<Bot, LifecycleDelivery>();
+const runnerNextSendAt = new WeakMap<Bot, number>();
+const runnerRetryAt = new WeakMap<Bot, number>();
 
 export function notificationErrorMessage(error: unknown): string {
   if (error instanceof GrammyError) {
@@ -23,6 +25,9 @@ export function notificationErrorMessage(error: unknown): string {
 }
 
 export function statusMessage(config: AppConfig, runner?: RunnerMonitor, delivery?: LifecycleDelivery): string {
+  const state = runner?.snapshot();
+  const timing = state?.cycleTiming;
+  const oldest = state?.pendingAlerts.reduce((at, event) => Math.min(at, Date.parse(event.record.lastSeenAt)), Infinity);
   return [
     "TOKEN INTELLIGENCE",
     "Status: proses bot aktif",
@@ -36,8 +41,13 @@ export function statusMessage(config: AppConfig, runner?: RunnerMonitor, deliver
     `Runner: ${runner?.active ? "AKTIF" : "NONAKTIF"}. Interval Solana/BSC/RH: /getconfig.`,
     `Notifikasi ONLINE/OFFLINE: ${config.telegramStartupChatId ? "tujuan dikonfigurasi" : "NONAKTIF; isi TELEGRAM_STARTUP_CHAT_ID"}. Hasil terakhir: ${delivery ? `${delivery.event} ${delivery.result}` : "belum diuji"}.`,
     delivery?.error ?? "",
-    `Notifikasi runner: ${config.telegramRunnerChatId ? "tujuan chat dikonfigurasi" : "NONAKTIF; isi TELEGRAM_RUNNER_CHAT_ID"}. Antrean: ${runner?.snapshot().pendingAlerts.length ?? 0}.`,
-    runner?.snapshot().lastNotificationError ?? "",
+    `Notifikasi runner: ${config.telegramRunnerChatId ? "tujuan chat dikonfigurasi" : "NONAKTIF; isi TELEGRAM_RUNNER_CHAT_ID"}. Antrean: ${state?.pendingAlerts.length ?? 0}.`,
+    state?.lastNotificationError ?? "",
+    ...(oldest !== undefined && Number.isFinite(oldest) ? [`Usia snapshot antrean tertua: ${Math.max(0, Math.floor((Date.now() - oldest) / 1000))} detik.`] : []),
+    ...(timing ? [
+      `Siklus runner terakhir: ${(timing.durationMs / 1000).toFixed(1)} detik; ${timing.queriedTokens} query token.`,
+      `Discovery: ${(timing.discoveryMs / 1000).toFixed(1)} detik; query/observasi token terlama: ${(timing.maxTokenQueryMs / 1000).toFixed(1)} detik.`
+    ] : []),
     "Smart wallet bank sendiri dan Discord belum aktif."
   ].join("\n");
 }
@@ -81,19 +91,27 @@ export async function configureTelegramMenu(bot: Bot): Promise<void> {
   await bot.api.setChatMenuButton({ menu_button: { type: "commands" } });
 }
 
-export async function sendRunnerNotifications(bot: Bot, runner: RunnerMonitor, config: AppConfig, chains?: Chain[]): Promise<void> {
-  if (!config.telegramRunnerChatId) return;
-  let nextSendAt = 0;
+export async function sendRunnerNotifications(bot: Bot, runner: RunnerMonitor, config: AppConfig, chains?: Chain[],
+  counts?: Partial<Record<Chain, number>>): Promise<void> {
+  if (!config.telegramRunnerChatId || (runnerRetryAt.get(bot) ?? 0) > Date.now()) return;
   await runner.deliverNotifications(async (event) => {
-    const delay = nextSendAt - Date.now();
+    const delay = (runnerNextSendAt.get(bot) ?? 0) - Date.now();
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
     if (!runner.active) throw new Error("Runner stopped");
-    await bot.api.sendMessage(config.telegramRunnerChatId!, formatRunnerNotification(event), {
-      parse_mode: "HTML", link_preview_options: { is_disabled: true },
-      reply_markup: runnerNotificationKeyboard(event.record.chain, event.record.mint)
-    });
-    nextSendAt = Date.now() + 1100;
-  }, chains);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      await bot.api.sendMessage(config.telegramRunnerChatId!, formatRunnerNotification(event), {
+        parse_mode: "HTML", link_preview_options: { is_disabled: true },
+        reply_markup: runnerNotificationKeyboard(event.record.chain, event.record.mint)
+      }, controller.signal as never);
+      runnerNextSendAt.set(bot, Date.now() + 1100);
+    } catch (error) {
+      const retry = error instanceof GrammyError ? error.parameters.retry_after : undefined;
+      runnerRetryAt.set(bot, Date.now() + Math.max(5, retry ?? 5) * 1000);
+      throw error;
+    } finally { clearTimeout(timeout); }
+  }, chains, counts);
 }
 
 export function formatStartupNotification(config: AppConfig, runner?: RunnerMonitor, now = Date.now()): string {

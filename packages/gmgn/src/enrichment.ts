@@ -49,26 +49,33 @@ export class EnrichedAdapter implements GmgnAdapter {
     if (!this.fomo) s.intelligence.unavailable.fomo = !this.config.fomoEnabled ? "FOMO_ENABLED=false" : "FOMO_API_KEY kosong pada proses ini";
     if (!this.made) s.intelligence.unavailable.developer = !this.config.madeonsolEnabled ? "MADEONSOL_ENABLED=false" : "MADEONSOL_API_KEY kosong pada proses ini";
     else if (chain === "bsc") s.intelligence.unavailable.developer = "MadeOnSol developer BSC belum didukung";
-    // Keep provider failures isolated; no enrichment can erase a base security block.
-    if (chain === "sol" && this.tracker) await this.optional(s, "Solana Tracker", () => this.trackerToken(s, mint, options?.forceRefresh));
-    if (chain === "sol" && this.helius) await this.optional(s, "Helius", () => this.authorities(s, mint, options?.forceRefresh));
-    if (chain === "sol" && this.made && s.intelligence.deployer) {
-      await this.optional(s, "MadeOnSol", () => this.developer(s, s.intelligence!.deployer!, options?.forceRefresh), "developer");
-    } else if (chain === "sol" && this.made) {
-      s.intelligence.unavailable.developer = "alamat deployer belum tersedia dari GMGN/Tracker";
-      s.dataWarnings.push("MadeOnSol: alamat deployer belum tersedia.");
-    }
-    if (chain === "robinhood" && this.made) {
-      await this.optional(s, "MadeOnSol", () => this.robinhoodDeveloper(s, mint, options?.forceRefresh), "developer");
-    }
-    if (this.fomo) await this.optional(s, "FOMO", () => this.fomoHolders(s, mint, chain, options?.forceRefresh), "fomo");
+    // Only the deployer lookup depends on Tracker; authority and FOMO queries are independent.
+    const tokenAndDeveloper = async () => {
+      if (chain === "sol" && this.tracker) await this.optional(s, "Solana Tracker", () => this.trackerToken(s, mint, options?.forceRefresh));
+      if (chain === "sol" && this.made && s.intelligence!.deployer) {
+        await this.optional(s, "MadeOnSol", () => this.developer(s, s.intelligence!.deployer!, options?.forceRefresh), "developer");
+      } else if (chain === "sol" && this.made) {
+        s.intelligence!.unavailable.developer = "alamat deployer belum tersedia dari GMGN/Tracker";
+        s.dataWarnings!.push("MadeOnSol: alamat deployer belum tersedia.");
+      }
+      if (chain === "robinhood" && this.made) {
+        await this.optional(s, "MadeOnSol", () => this.robinhoodDeveloper(s, mint, options?.forceRefresh), "developer");
+      }
+    };
+    await Promise.all([
+      tokenAndDeveloper(),
+      chain === "sol" && this.helius ? this.optional(s, "Helius", () => this.authorities(s, mint, options?.forceRefresh)) : undefined,
+      this.fomo ? this.optional(s, "FOMO", () => this.fomoHolders(s, mint, chain, options?.forceRefresh), "fomo") : undefined
+    ]);
+    const order = ["GMGN", "Solana Tracker", "Helius", "MadeOnSol", "FOMO"];
+    s.intelligence.sources.sort((a, b) => order.indexOf(a) - order.indexOf(b));
     return s;
   }
 
   async discoverTokens(chain: Chain = "sol"): Promise<string[]> {
     if (chain !== "sol" || !this.tracker) return this.base.discoverTokens?.(chain) ?? [];
     // Tracker is primary for Solana discovery; a failure is surfaced, not hidden by fixture data.
-    const raw = await this.tracker.request("/search?sortBy=volume_5m&sortOrder=desc&limit=10");
+    const raw = await this.tracker.request("/search?sortBy=volume_5m&sortOrder=desc&limit=10", undefined, false, 15000);
     const parsed = z.object({ status: z.literal("success"), data: z.array(z.object({ mint: base58AddressSchema })) }).parse(raw);
     return [...new Set(parsed.data.map((r) => r.mint))].slice(0, 10);
   }

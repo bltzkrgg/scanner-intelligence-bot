@@ -20,6 +20,8 @@ Notifikasi runner memakai teks tebal MARKET / ACTIVITY / STATUS tanpa kotak copy
 
 Scan CA dan runner mendukung enrichment opsional Solana Tracker, Helius, MadeOnSol dan FOMO. Isi key di `.env`; lihat [instalasi, cakupan dan batasan provider](docs/providers.md). MadeOnSol menampilkan jumlah token/bonding Solana serta graduation Robinhood dengan key yang sama; riwayat rug developer tidak dipakai dalam laporan atau skor.
 
+Pengiriman runner kini diperiksa setelah tiap observasi tersimpan, bukan setelah semua chain selesai. `/status` menampilkan durasi siklus; lihat [penyebab dan batas latensi](docs/runner-latency.md).
+
 ## Mulai
 
 Ikuti [tutorial instalasi lengkap](docs/installation.md) dari pemasangan tools, pembuatan bot Telegram, pengujian API, sampai menjalankan bot di server.

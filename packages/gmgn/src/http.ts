@@ -18,7 +18,7 @@ export class ProviderHttp {
     private readonly headers: Record<string, string>, private readonly ttlMs: number,
     private readonly fetcher: typeof fetch = fetch) {}
 
-  async request(path: string, body?: unknown, force = false): Promise<unknown> {
+  async request(path: string, body?: unknown, force = false, ttlMs = this.ttlMs): Promise<unknown> {
     const key = path + (body === undefined ? "" : JSON.stringify(body));
     const cached = this.cache.get(key);
     if (!force && cached && cached.until > Date.now()) return structuredClone(cached.value);
@@ -27,7 +27,7 @@ export class ProviderHttp {
     if (Date.now() < this.blockedUntil) throw new ProviderHttpError(this.name, `cooldown setelah HTTP ${this.blockedStatus}.`, this.blockedStatus);
     const task = this.fetchJson(path, body).then((value) => {
       if (this.cache.size >= 300) this.cache.delete(this.cache.keys().next().value!);
-      this.cache.set(key, { until: Date.now() + this.ttlMs, value });
+      this.cache.set(key, { until: Date.now() + ttlMs, value });
       return value;
     });
     this.pending.set(key, task);

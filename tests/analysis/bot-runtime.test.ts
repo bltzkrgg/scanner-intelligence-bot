@@ -9,7 +9,7 @@ import { loadConfig } from "../../packages/shared/src/config.js";
 import { runTelegramRuntime } from "../../apps/telegram/src/runtime.js";
 import { live } from "./live-fixtures.js";
 
-async function setup(enabled = false) {
+async function setup(enabled = false, runnerChat = false) {
   const bot = new Bot("test-token");
   const signals = new EventEmitter();
   const request = vi.fn();
@@ -31,7 +31,8 @@ async function setup(enabled = false) {
   const runner = new RunnerMonitor({ getTokenSnapshot: async () => live() }, file, enabled);
   await runner.init();
   const checkpoint = vi.spyOn(runner, "checkpoint");
-  const config = loadConfig({ TELEGRAM_STARTUP_CHAT_ID: "123", RUNNER_ENABLED: String(enabled), BOT_SHUTDOWN_TIMEOUT_SEC: "10" });
+  const config = loadConfig({ TELEGRAM_STARTUP_CHAT_ID: "123", TELEGRAM_RUNNER_CHAT_ID: runnerChat ? "456" : undefined,
+    RUNNER_ENABLED: String(enabled), BOT_SHUTDOWN_TIMEOUT_SEC: "10" });
   const forceExit = vi.fn();
   const run = () => runTelegramRuntime(bot, runner, config, { signals, forceExit });
   const online = () => vi.waitFor(() => expect(request).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ text: expect.stringContaining("<b>Bot Online</b>") })));
@@ -39,6 +40,22 @@ async function setup(enabled = false) {
 }
 
 describe("whole-bot lifecycle", () => {
+  it("sends runner alerts from the observation callback before the cycle completes", async () => {
+    const s = await setup(true, true);
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    vi.spyOn(s.runner, "cycle").mockImplementation(async (options) => {
+      options?.onChainStart?.("sol"); await s.runner.observe(live());
+      await options?.onObservation?.(); await blocked; return ["sol"];
+    });
+    const task = s.run();
+    try {
+      await vi.waitFor(() => expect(s.request).toHaveBeenCalledWith("sendMessage", expect.objectContaining({
+        chat_id: "456", text: expect.stringContaining("SOLANA TOKEN RUNNER")
+      })));
+      await vi.waitFor(() => expect(s.runner.snapshot().pendingAlerts).toHaveLength(0));
+    } finally { s.signals.emit("SIGTERM"); release(); s.finish(); await task; }
+  });
   it("sends ONLINE then one OFFLINE only after middleware drains and state saves", async () => {
     const s = await setup();
     const task = s.run();

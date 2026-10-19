@@ -1,6 +1,6 @@
 import type { Bot } from "grammy";
 import type { RunnerMonitor } from "@sti/analysis";
-import { logger, type AppConfig } from "@sti/shared";
+import { logger, type AppConfig, type Chain } from "@sti/shared";
 import { BotHealth, startHealthServer } from "./health.js";
 import { configureTelegramMenu, sendRunnerNotifications, sendStartupNotification, sendShutdownNotification } from "./lifecycle.js";
 
@@ -17,6 +17,8 @@ export async function runTelegramRuntime(bot: Bot, runner: RunnerMonitor, config
   let cycle: Promise<void> | undefined;
   let stopPolling: Promise<void> | undefined;
   let closeHealth: (() => Promise<void>) | undefined;
+  const deliveryCounts: Partial<Record<Chain, number>> = {};
+  const startedChains = new Set<Chain>();
 
   bot.api.config.use(async (previous, method, payload, signal) => {
     const result = await previous(method, payload, signal);
@@ -26,7 +28,15 @@ export async function runTelegramRuntime(bot: Bot, runner: RunnerMonitor, config
 
   async function tick(): Promise<void> {
     if (stopping) return;
-    cycle = runner.cycle({ scheduled: true }).then((chains) => sendRunnerNotifications(bot, runner, config, chains));
+    const flush = () => sendRunnerNotifications(bot, runner, config, undefined, deliveryCounts);
+    cycle = (async () => {
+      await flush();
+      await runner.cycle({ scheduled: true, onChainStart: (chain) => {
+        if (startedChains.has(chain)) deliveryCounts[chain] = 0;
+        startedChains.add(chain);
+      }, onObservation: flush });
+      await flush();
+    })();
     try { await cycle; } catch { logger.warn("Runner cycle or state write failed"); }
     if (!stopping) timer = setTimeout(() => { void tick(); }, 1000);
   }

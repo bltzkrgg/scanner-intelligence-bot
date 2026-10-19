@@ -79,7 +79,7 @@ Harga, volume, market cap dan fee tetap konsisten dari GMGN. DEX yang dilaporkan
 
 ## Cache dan Kegagalan
 
-Cache enrichment default 300 detik per endpoint dibagi oleh scan dan runner dalam satu proses. RPC authority memakai 30 detik. Request identik yang masih berjalan digabung; refresh eksplisit melewati cache lokal. Data provider dapat mempunyai cache upstream tersendiri. Setiap query HTTP dibatasi 8 detik, tidak retry tanpa batas. Respons 401/402/403/429 mengaktifkan cooldown 60-3600 detik sesuai Retry-After. Respons invalid/error tidak diubah menjadi nol. Warning tidak menyertakan URL, header auth, atau isi respons error. Cache hanya berlaku per proses, bukan antar proses PM2/API.
+Cache enrichment default 300 detik per endpoint dibagi oleh scan dan runner dalam satu proses. Discovery Tracker memakai 15 detik, bukan TTL enrichment; RPC authority memakai 30 detik. Request identik yang masih berjalan digabung; refresh eksplisit melewati cache lokal. Query independen Helius/FOMO berjalan bersama jalur Tracker/developer, dengan blok keamanan tetap dipertahankan. Data provider dapat mempunyai cache upstream tersendiri. Setiap query HTTP dibatasi 8 detik, tidak retry tanpa batas. Respons 401/402/403/429 mengaktifkan cooldown 60-3600 detik sesuai Retry-After. Respons invalid/error tidak diubah menjadi nol. Warning tidak menyertakan URL, header auth, atau isi respons error. Cache hanya berlaku per proses, bukan antar proses PM2/API. Lihat [diagnosis latensi runner](runner-latency.md).
 
 ## Batasan yang Belum Diimplementasikan
 
