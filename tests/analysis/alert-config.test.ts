@@ -106,6 +106,7 @@ describe("runtime runner alert settings", () => {
 
   it("warms up non-overlapping windows, persists cooldown and expires stale baselines", async () => {
     const { monitor, file, adapter } = await setup();
+    await monitor.setConfig("tokenAlerts.oldTokenVolume.enabled", "false");
     const t = Date.now();
     const observe = (target: RunnerMonitor, minute: number, volume: number) => target.observe({ ...live(),
       dexAgeMinutes: 1000, volume5mUsd: volume, observedAt: new Date(t + minute * 60000).toISOString() });

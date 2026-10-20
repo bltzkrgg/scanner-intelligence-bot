@@ -79,6 +79,12 @@ describe("Telegram scan routing", () => {
     expect(monitor.snapshot().alertConfig.tokenAlerts.pollIntervalSec).toBe(15);
     await send("/getconfig tokenAlerts");
     expect(reply).toHaveBeenCalledWith("sendMessage", expect.objectContaining({ text: expect.stringContaining("tokenAlerts.pollIntervalSec: 15") }));
+    await send("/setconfig tokenAlerts.oldTokenVolume.minVolume5mUsd 175000", 2);
+    expect(monitor.snapshot().alertConfig.tokenAlerts.oldTokenVolume.minVolume5mUsd).toBe(150000);
+    await send("/setconfig tokenAlerts.oldTokenVolume.minVolume5mUsd 175000");
+    await send("/getconfig tokenAlerts");
+    expect(reply).toHaveBeenLastCalledWith("sendMessage", expect.objectContaining({
+      text: expect.stringContaining("tokenAlerts.oldTokenVolume.minVolume5mUsd: 175000") }));
     await send("/setconfig bscAlerts.minTotalFeesBnb 0.25", 2);
     expect(monitor.snapshot().alertConfig.bscAlerts.minTotalFeesBnb).toBe(0.5);
     await send("/setconfig bscAlerts.minTotalFeesBnb 0.25");
@@ -90,6 +96,7 @@ describe("Telegram scan routing", () => {
     await restored.init();
     expect(restored.snapshot().alertConfig.tokenAlerts.pollIntervalSec).toBe(15);
     expect(restored.snapshot().alertConfig.bscAlerts.minTotalFeesBnb).toBe(0.25);
+    expect(restored.snapshot().alertConfig.tokenAlerts.oldTokenVolume.minVolume5mUsd).toBe(175000);
   });
   it("asks for a network for bare EVM addresses and scans only after selection", async () => {
     const { send, press, scan, reply } = setup();

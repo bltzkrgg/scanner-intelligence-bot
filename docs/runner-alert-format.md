@@ -66,3 +66,5 @@ Mobile dan desktop menerima HTML dan keyboard yang sama. Teks biasa dapat membun
 Teks provider di-escape dan preview tautan dimatikan. Format berlaku pada pengiriman berikutnya, bukan mengedit pesan lama. Pengujian lokal memakai renderer dan transport Telegram mock, bukan screenshot aplikasi Telegram asli. `/runner_test` bukan kandidat palsu.
 
 Pengaturan filter: [runner-config.md](runner-config.md).
+
+Alert volume independen di Solana/BSC/RH memakai judul `<CHAIN> VOLUME ALERT` serta bagian MOMENTUM (baseline/rasio) dan status `VOLUME TINGGI TERDETEKSI`, `VOLUME TEMBUS BATAS`, atau `VOLUME SPIKE`. Tombol dan aturan teks tanpa kotak copy tetap sama. Umur panjang ditulis dalam jam/hari. Detail konfigurasi, deduplikasi, dan keterbatasan discovery ada di [alert volume token lama](old-token-volume.md).

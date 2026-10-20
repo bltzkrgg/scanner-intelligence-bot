@@ -17,11 +17,13 @@ export function registerConfigCommands(bot: Bot, monitor: RunnerMonitor, config:
           return;
         }
         const settings = monitor.snapshot().alertConfig;
-        await ctx.reply(["PENGATURAN RUNNER", ...Object.entries(settings)
-          .filter(([key]) => !section || key === section)
-          .flatMap(([key, fields]) => Object.entries(fields).map(([field, value]) => `${key}.${field}: ${value}`)),
-          "Ubah: /setconfig <key> <value>. Tersimpan tanpa restart.",
-          "Prasyarat: RUNNER_ENABLED=true, GMGN_PROVIDER=cli, ENABLED_CHAINS, dan TELEGRAM_RUNNER_CHAT_ID."].join("\n"));
+        for (const [key, fields] of Object.entries(settings).filter(([key]) => !section || key === section)) {
+          await ctx.reply(["PENGATURAN RUNNER", ...Object.entries(fields).flatMap(([field, value]) =>
+            typeof value === "object" ? Object.entries(value).map(([nested, setting]) => `${key}.${field}.${nested}: ${setting}`)
+              : [`${key}.${field}: ${value}`]),
+            "Ubah: /setconfig <key> <value>. Tersimpan tanpa restart.",
+            "Prasyarat: RUNNER_ENABLED=true, GMGN_PROVIDER=cli, ENABLED_CHAINS, dan TELEGRAM_RUNNER_CHAT_ID."].join("\n"));
+        }
         return;
       }
       if (args.length !== 2) {

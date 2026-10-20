@@ -57,14 +57,14 @@ Di Telegram, admin menjalankan:
 
 ## Mekanisme Pengiriman
 
-1. Worker mengecek jadwal per jaringan, mengambil maksimal 10 token trending GMGN interval 5m serta kandidat tersimpan yang belum melewati masa pantau 7 hari.
+1. Worker mengecek jadwal per jaringan, mengambil maksimal 10 token trending GMGN interval 5m (Solana memakai search volume5m Solana Tracker jika key tersedia), serta token tersimpan. Discovery tidak membatasi umur. Token tersimpan tetap dipantau tanpa batas tujuh hari ketika `oldTokenVolume.enabled=true`; jika dimatikan, masa pantau kembali tujuh hari sejak deteksi.
 2. Token info/security diperiksa. Data wajib yang tidak tersedia menggagalkan filter; tidak diganti nol. Indikasi honeypot/wash trading dan blok keamanan provider yang sudah diterapkan tetap berlaku.
 3. Solana/BSC/RH memakai filter admin masing-masing di bawah untuk kandidat baru. Runner Score tetap informasi eksperimen terpisah, bukan syarat pengiriman alert.
 4. Kandidat baru dicatat sekali dengan harga saat deteksi, lalu event dimasukkan ke antrean persisten. CA yang dikirim langsung atau `/runner` juga bisa masuk histori ketika pemantauan dan alert chain aktif.
-5. Setelah siklus jaringan selesai, bot mengirim antreannya ke `TELEGRAM_RUNNER_CHAT_ID`, bukan membroadcast ke seluruh user.
-6. Jika harga sampel mencapai 2x/5x dari harga pertama deteksi, masing-masing milestone dicatat sekali. Solana/BSC juga punya event spike terpisah dengan baseline dan cooldown per jaringan dan CA.
+5. Setelah observasi tersimpan, bot dapat langsung mengirim antreannya ke `TELEGRAM_RUNNER_CHAT_ID` tanpa menunggu seluruh siklus, bukan membroadcast ke seluruh user.
+6. Jika harga sampel mencapai 2x/5x dari harga pertama deteksi, masing-masing milestone dicatat sekali. Ketiga jaringan juga punya alert volume independen tanpa syarat umur/fees, serta baseline dan cooldown per jaringan dan CA; lihat [alert volume token lama](old-token-volume.md). Rule spike legacy Solana/BSC tetap tersedia di bawah ambang alert volume baru atau ketika fitur baru dimatikan.
 
-`maxPerScan` membatasi jumlah pesan/event yang dikirim per jaringan per siklus, termasuk candidate, spike dan milestone. Bukan batas seluruh token yang di-query. Sisa event tetap antre. Pengiriman gabungan dibatasi 50 event per flush dengan jeda minimal 1,1 detik antar pesan. Antrean maksimal 1.000 event; jika penuh observasi yang memerlukan event baru tidak disimpan, error terlihat pada status siklus. Pulihkan pengiriman, jangan menghapus state sembarangan.
+`maxPerScan` membatasi jumlah pesan/event yang dikirim per jaringan per siklus, termasuk candidate, volume, spike dan milestone. Bukan batas seluruh token yang di-query. Sisa event tetap antre. Pengiriman gabungan dibatasi 50 event per flush dengan jeda minimal 1,1 detik antar pesan. Antrean maksimal 1.000 event; jika penuh observasi yang memerlukan event baru tidak disimpan, error terlihat pada status siklus. Pulihkan pengiriman, jangan menghapus state sembarangan.
 
 Kegagalan pengiriman mempertahankan antrean untuk jadwal berikutnya. Jika Telegram sudah menerima tetapi proses berhenti sebelum acknowledgment tersimpan, pesan bisa terkirim ulang; Event ID membantu mengenali duplikat. Data event lebih dari 15 menit dilabeli notifikasi tertunda. Menonaktifkan alert chain menahan polling/observasi/pengiriman untuk chain itu, bukan menghapus histori dan antreannya; scan biasa tetap tersedia.
 
@@ -143,7 +143,7 @@ Default berikut sesuai rancangan yang disetujui, bukan hasil optimasi/backtest p
 
 Harga live, volume5m, fees BNB, market cap dan umur DEX harus memenuhi syarat untuk kandidat baru. Timestamp DEX yang hilang menahan alert kandidat baru; tanggal token dibuat bukan pengganti. Status honeypot dari GMGN harus diketahui dan negatif. Status honeypot hilang/tidak dikenali, security tidak tersedia, honeypot positif atau indikasi wash trading memblokir kandidat dan spike. Filter angka yang dilonggarkan tidak menonaktifkan blok keamanan tersebut.
 
-Spike BSC memakai baseline yang sama definisinya dengan Solana: 3 sampel terdahulu yang tidak tumpang tindih, butuh sekitar 15 menit pemanasan, baseline valid maksimal 30 menit. Syarat spike adalah harga live, volume minimal, market cap, fees BNB, multiplier, swaps dan likuiditas; umur maksimum tidak diterapkan pada spike. Sampel dan cooldown disimpan terpisah menurut chain + CA, termasuk jika alamat EVM sama ada pada RH. Kapasitas baseline 500 CA adalah gabungan Solana/BSC; kapasitas kandidat tetap 50 per jaringan.
+Spike legacy BSC memakai baseline yang sama definisinya dengan Solana: 3 sampel terdahulu yang tidak tumpang tindih, butuh sekitar 15 menit pemanasan, baseline valid maksimal 30 menit. Syarat spike legacy adalah harga live, volume minimal, market cap, fees BNB, multiplier, swaps dan likuiditas; umur maksimum tidak diterapkan pada spike. Sampel dan cooldown disimpan terpisah menurut chain + CA, termasuk jika alamat EVM sama ada pada RH. Kapasitas baseline 500 CA adalah gabungan ketiga jaringan; kapasitas kandidat tetap 50 per jaringan. Alert volume independen memakai aturan [oldTokenVolume](old-token-volume.md), bukan syarat spike legacy ini.
 
 `bscAlerts.enabled=false` menjeda polling/observasi dan menahan antrean BSC saja. Mengaktifkannya lagi tidak mengirim kandidat historis ulang, tetapi pesan yang memang belum terkirim akan dilanjutkan. `/runner_remove bsc <CA>` menghapus histori/antrean/baseline BSC tanpa menghapus alamat yang sama pada RH. Tidak ada jaminan token aman atau setiap runner terdeteksi.
 
@@ -165,7 +165,7 @@ Spike BSC memakai baseline yang sama definisinya dengan Solana: 3 sampel terdahu
 /setconfig robinhoodAlerts.maxPerScan 5
 ```
 
-RH tidak memiliki filter umur/market cap atau config spike dalam versi ini. Respons security tetap diperlukan, indikator honeypot/wash trading positif tetap memblokir. Jika field honeypot RH tidak disediakan provider, keterbatasan itu ditampilkan, bukan diklaim aman.
+Filter kandidat RH tidak memiliki batas umur/market cap atau config spike legacy. RH kini mendukung `robinhoodAlerts.oldTokenVolume.*`, termasuk spike dengan baseline dan tanpa minimum fees; lihat [pengaturan volume](old-token-volume.md). Respons security tetap diperlukan, indikator honeypot/wash trading positif tetap memblokir. Jika field honeypot RH tidak disediakan provider, keterbatasan itu ditampilkan, bukan diklaim aman.
 
 ## Sumber dan Definisi Data
 

@@ -4,7 +4,14 @@ import type { Chain, MarketSnapshot } from "@sti/shared";
 const poll = z.number().int().min(15).max(300);
 const money = z.number().finite().nonnegative();
 const maxAlerts = z.number().int().min(1).max(50);
+const oldTokenVolumeFields = {
+  enabled: z.boolean().default(true), minVolume5mUsd: money.default(150000),
+  minLiquidityUsd: money.default(10000), spikeMultiplier: z.number().finite().gt(1).max(1000).default(3),
+  cooldownMin: z.number().int().min(1).max(43200).default(60)
+};
+const oldTokenVolume = z.object(oldTokenVolumeFields).prefault({});
 const solFields = {
+  oldTokenVolume,
   enabled: z.boolean().default(true), pollIntervalSec: poll.default(60),
   minVolume5mUsd: money.default(100000), minMarketCapUsd: money.default(100000),
   minTotalFeesSol: money.default(10), maxAgeMin: z.number().int().min(1).max(43200).default(30),
@@ -14,6 +21,7 @@ const solFields = {
   volumeSpikeCooldownMin: z.number().int().min(1).max(43200).default(360)
 };
 const rhFields = {
+  oldTokenVolume,
   enabled: z.boolean().default(true), pollIntervalSec: poll.default(60),
   minVolume5mUsd: money.default(100000), minTotalFeesEth: money.default(0.1),
   maxPerScan: maxAlerts.default(5)
@@ -32,13 +40,15 @@ export type AlertConfig = z.infer<typeof alertConfigSchema>;
 export const defaultAlertConfig = (): AlertConfig => alertConfigSchema.parse({});
 
 const fields: Record<string, z.ZodType> = Object.fromEntries([
-  ...Object.entries(solFields).map(([key, schema]) => [`tokenAlerts.${key}`, schema]),
-  ...Object.entries(bscFields).map(([key, schema]) => [`bscAlerts.${key}`, schema]),
-  ...Object.entries(rhFields).map(([key, schema]) => [`robinhoodAlerts.${key}`, schema])
+  ...Object.entries(solFields).filter(([key]) => key !== "oldTokenVolume").map(([key, schema]) => [`tokenAlerts.${key}`, schema]),
+  ...Object.entries(bscFields).filter(([key]) => key !== "oldTokenVolume").map(([key, schema]) => [`bscAlerts.${key}`, schema]),
+  ...Object.entries(rhFields).filter(([key]) => key !== "oldTokenVolume").map(([key, schema]) => [`robinhoodAlerts.${key}`, schema]),
+  ...["tokenAlerts", "bscAlerts", "robinhoodAlerts"].flatMap((section) =>
+    Object.entries(oldTokenVolumeFields).map(([key, schema]) => [`${section}.oldTokenVolume.${key}`, schema]))
 ]);
 const aliases: Record<string, string> = Object.fromEntries(Object.keys(fields).map((path) => {
-  const [section, key] = path.split(".");
-  return [`${section}${key[0].toUpperCase()}${key.slice(1)}`, path];
+  const [section, ...keys] = path.split(".");
+  return [`${section}${keys.map((key) => key[0].toUpperCase() + key.slice(1)).join("")}`, path];
 }));
 
 export function updateAlertConfig(config: AlertConfig, key: string, input: string): { config: AlertConfig; key: string; value: unknown } {
@@ -48,14 +58,28 @@ export function updateAlertConfig(config: AlertConfig, key: string, input: strin
     : input.trim() ? Number(input) : NaN;
   const result = fields[path].safeParse(raw);
   if (!result.success) throw new Error(`${path}: ${result.error.issues.map((issue) => issue.message).join("; ")}`);
-  const [section, property] = path.split(".") as [keyof AlertConfig, string];
+  const [section, property, nested] = path.split(".") as [keyof AlertConfig, string, string?];
   const next = structuredClone(config);
-  Object.assign(next[section], { [property]: result.data });
+  if (property === "oldTokenVolume" && nested) Object.assign(next[section].oldTokenVolume, { [nested]: result.data });
+  else Object.assign(next[section], { [property]: result.data });
   return { config: alertConfigSchema.parse(next), key: path, value: result.data };
 }
 
 function chainAlertConfig(config: AlertConfig, chain: Chain) {
   return chain === "sol" ? config.tokenAlerts : chain === "bsc" ? config.bscAlerts : config.robinhoodAlerts;
+}
+
+export function oldTokenVolumeConfig(config: AlertConfig, chain: Chain) {
+  return chainAlertConfig(config, chain).oldTokenVolume;
+}
+
+export function evaluateOldTokenVolume(s: MarketSnapshot, config: AlertConfig): boolean {
+  const chain = s.chain ?? "sol";
+  const c = oldTokenVolumeConfig(config, chain);
+  return alertsEnabled(config, chain) && c.enabled && s.source === "gmgn-cli" && !s.runnerBlockReason
+    && s.priceUsd != null && Number.isFinite(s.priceUsd) && s.priceUsd > 0
+    && s.volume5mUsd != null && Number.isFinite(s.volume5mUsd) && s.volume5mUsd >= c.minVolume5mUsd
+    && s.liquidityUsd != null && Number.isFinite(s.liquidityUsd) && s.liquidityUsd >= c.minLiquidityUsd;
 }
 
 export function volumeSpikeConfig(config: AlertConfig, chain: Chain) {

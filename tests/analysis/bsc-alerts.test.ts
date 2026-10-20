@@ -24,6 +24,7 @@ describe("BSC configurable runner", () => {
   it("has independent BNB defaults and validates BSC settings and aliases", () => {
     const config = defaultAlertConfig();
     expect(config.bscAlerts).toEqual({ enabled: true, pollIntervalSec: 60, minVolume5mUsd: 50000,
+      oldTokenVolume: { enabled: true, minVolume5mUsd: 150000, minLiquidityUsd: 10000, spikeMultiplier: 3, cooldownMin: 60 },
       minMarketCapUsd: 100000, minTotalFeesBnb: 0.5, maxAgeMin: 60, maxPerScan: 5,
       volumeSpikeMultiplier: 3, volumeSpikeMinSwaps5m: 50,
       volumeSpikeMinLiquidityUsd: 20000, volumeSpikeCooldownMin: 360 });

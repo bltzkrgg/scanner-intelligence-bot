@@ -43,7 +43,11 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
   ]) : null;
   let status: string;
   let detail: string;
-  if (event.kind === "2x" || event.kind === "5x") {
+  if (event.kind === "volume") {
+    status = r.volumeTrigger === "spike" ? "🟢 VOLUME SPIKE"
+      : r.volumeTrigger === "crossing" ? "🟢 VOLUME TEMBUS BATAS" : "🟢 VOLUME TINGGI TERDETEKSI";
+    detail = `Volume ≥ ${usd(r.volumeThresholdUsd, true)}/5m`;
+  } else if (event.kind === "2x" || event.kind === "5x") {
     status = `🟢 ${event.kind.toUpperCase()} TERAMATI`;
     detail = `${number(r.latestPrice / r.initialPrice)}x dari deteksi\nHarga awal: ${usd(r.initialPrice)}`;
   } else if (legacy) {
@@ -62,21 +66,30 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
   const notes = r.riskNotes.filter((note) => !isEnrichmentDiagnostic(note)).slice(0, 3).map((note) => escapeHtml(clip(note, 180)));
   const unavailable = Object.entries(i?.unavailable ?? {}).filter(([field]) => field !== "fomo" && field !== "developer");
   return [
-    `<b>${badge} ${network} TOKEN RUNNER</b>`, "",
-    `<b>💊 ${escapeHtml(clip(r.symbol, 40))}${present(r.dexAgeMinutes) ? ` • ${number(r.dexAgeMinutes)}m` : ""}</b>`,
+    `<b>${badge} ${network} ${event.kind === "volume" ? "VOLUME ALERT" : "TOKEN RUNNER"}</b>`, "",
+    `<b>💊 ${escapeHtml(clip(r.symbol, 40))}${present(r.dexAgeMinutes) ? ` • ${age(r.dexAgeMinutes)}` : ""}</b>`,
     escapeHtml(`${r.name ? `${clip(r.name, 80)} | ` : ""}${i?.dex ?? `${CHAIN_NAMES[r.chain]} | GMGN`}`), "",
     ...(delayed ? ["<b>⚠️ ALERT TERTUNDA</b>", "Data saat event, bukan harga terbaru.", ""] : []),
-    market, "", activity, "", ...(intelligence ? [intelligence, ""] : []), "┌ <b>STATUS</b>",
+    market, "", activity, "", ...(intelligence ? [intelligence, ""] : []),
+    ...(event.kind === "volume" ? [block("MOMENTUM", [
+      ["Baseline 5m", usd(r.baselineVolume5mUsd, true)],
+      ["Lonjakan", present(r.spikeMultiplier) ? `${number(r.spikeMultiplier)}x` : "Belum tersedia"]
+    ]), ""] : []), "┌ <b>STATUS</b>",
     `└ <b>${escapeHtml(status)}</b>`, ...detail.split("\n").map((line) => `   ${escapeHtml(line)}`),
     ...(legacy ? ["Deteksi berasal dari rule lama; bukan kelulusan filter saat ini."]
       : event.kind === "candidate" ? []
-      : event.kind === "spike" ? []
+      : event.kind === "spike" || event.kind === "volume" ? []
       : ["Kelipatan harga teramati saat query; bukan target atau ATH."]),
     ...(notes.length ? ["", "<b>Catatan Risiko</b>", ...notes] : []), "",
     ...(unavailable.length ? ["<b>Data Belum Tersedia</b>",
       ...unavailable.map(([, reason]) => escapeHtml(`Linked funding: ${clip(reason, 140)}`)), ""] : []),
     "<b>CA</b>", escapeHtml(r.mint)
   ].join("\n");
+}
+
+function age(minutes: number): string {
+  return minutes >= 1440 ? `Umur ${number(minutes / 1440, 1)} hari`
+    : minutes >= 60 ? `Umur ${number(minutes / 60, 1)} jam` : `${number(minutes)}m`;
 }
 
 function block(title: string, rows: Array<[string, string]>): string {

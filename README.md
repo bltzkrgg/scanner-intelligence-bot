@@ -16,6 +16,8 @@ Untuk BSC/RH dan notifikasi, ikuti [aktivasi multichain dan alert](docs/multicha
 
 Admin kini bisa mengubah filter Solana/BSC/RH dengan `/setconfig` tanpa restart, melihat `/getconfig`, dan menerima alert volume spike Solana/BSC. Fees mengikuti native chain: SOL/BNB/ETH. Daftar key, default, aktivasi PM2 dan contoh pesan ada di [pengaturan runner Telegram](docs/runner-config.md). Kebutuhan tambahan data risiko GMGN dicatat di [backlog pengayaan data](docs/gmgn-enrichment-backlog.md), belum diklaim selesai.
 
+Alert volume tanpa batas umur kini tersedia untuk Solana, BSC, dan Robinhood: default volume rolling 5 menit >= $150K, likuiditas >= $10K, tanpa syarat fees/umur/market cap. Ada status volume tinggi, crossing, dan spike dengan baseline terukur; cooldown default 60 menit per chain+CA. Berlaku pada hasil discovery dan token tersimpan, bukan jaminan cakupan seluruh pasar. Lihat [alert volume token lama](docs/old-token-volume.md) untuk konfigurasi dan upgrade.
+
 Notifikasi runner memakai teks tebal MARKET / ACTIVITY / STATUS tanpa kotak copy, Flow 5m jika tersedia (fallback 1h berlabel), N/A untuk data kosong, dan tombol GMGN / Detail Runner / Salin CA. Footer waktu/Ref dihapus; peringatan tertunda dan risiko spesifik tetap tampil. Tombol explorer dan Refresh tidak muncul pada alert runner; laporan scan biasa tetap memiliki tombolnya. Lihat [format alert runner](docs/runner-alert-format.md).
 
 Scan CA dan runner mendukung enrichment opsional Solana Tracker, Helius, MadeOnSol dan FOMO. Isi key di `.env`; lihat [instalasi, cakupan dan batasan provider](docs/providers.md). MadeOnSol menampilkan jumlah token/bonding Solana serta graduation Robinhood dengan key yang sama; riwayat rug developer tidak dipakai dalam laporan atau skor.
@@ -125,7 +127,7 @@ Runner Score adalah rule momentum terpisah (bukan skor historis/probabilitas pro
 - Scan mengambil `token info` dan `token security`; cache per CA selama 10 detik.
 - Worker mengambil trending per jaringan dan memperbarui kandidat tiap siklus. Alert kandidat baru/2x/5x dikirim hanya ke TELEGRAM_RUNNER_CHAT_ID; tidak ada broadcast ke semua pengguna atau alert transaksi wallet.
 - Metrik yang tidak memiliki padanan semantik tetap `null`; volume bundler tidak diperlakukan sebagai kepemilikan bundler.
-- Runner menyimpan maksimal 50 kandidat per jaringan, memantau 7 hari sejak deteksi. Harga puncak/drawdown adalah sampel yang teramati, bukan seluruh tick pasar.
+- Runner menyimpan maksimal 50 kandidat per jaringan. Saat `oldTokenVolume.enabled=true` (default), token tersimpan tetap dipantau tanpa batas tujuh hari; jika fitur dimatikan, masa pantau kembali tujuh hari. Harga puncak/drawdown adalah sampel yang teramati, bukan seluruh tick pasar.
 - PostgreSQL belum terhubung ke proses scan; belum ada migrasi atau penyimpanan laporan ke database.
 - API belum memiliki autentikasi atau rate limiting. Batasi akses server seperti pada tutorial.
 - Validasi awal memakai pola base58/EVM; query provider memverifikasi data token. Pemeriksaan ini bukan audit kontrak on-chain.

@@ -4,7 +4,8 @@ import { z } from "zod";
 import { chainSchema, normalizeAddress, tokenAddressSchema, tokenIntelligenceSchema, CHAIN_NAMES, isEnrichmentDiagnostic, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "@sti/gmgn";
 import { alertConfigSchema, defaultAlertConfig, alertsEnabled, alertInterval, maxAlertsPerScan,
-  evaluateTokenAlert, evaluateVolumeSpike, volumeSpikeConfig, updateAlertConfig } from "./alert-config.js";
+  evaluateTokenAlert, evaluateVolumeSpike, volumeSpikeConfig, updateAlertConfig,
+  oldTokenVolumeConfig, evaluateOldTokenVolume } from "./alert-config.js";
 
 export type RunnerAssessment = { score: number | null; candidate: boolean; reasons: string[] };
 
@@ -66,14 +67,18 @@ const recordSchema = z.object({
   intelligence: tokenIntelligenceSchema.nullable().default(null),
   baselineVolume5mUsd: z.number().nonnegative().nullable().default(null),
   spikeMultiplier: z.number().nonnegative().nullable().default(null),
-  qualification: z.enum(["legacy", "configured", "spike"]).default("legacy"),
+  qualification: z.enum(["legacy", "configured", "spike", "volume"]).default("legacy"),
+  volumeTrigger: z.enum(["high", "crossing", "spike"]).nullable().default(null),
+  volumeThresholdUsd: z.number().nonnegative().nullable().default(null),
   reached2xAt: z.string().datetime().nullable(), reached5xAt: z.string().datetime().nullable()
 }).transform((record) => ({ ...record, mint: normalizeAddress(record.mint, record.chain) }));
-const eventSchema = z.object({ id: z.string(), kind: z.enum(["candidate", "spike", "2x", "5x"]), record: recordSchema });
+const eventSchema = z.object({ id: z.string(), kind: z.enum(["candidate", "spike", "volume", "2x", "5x"]), record: recordSchema });
 const baselineSchema = z.object({
   chain: chainSchema, mint: tokenAddressSchema,
   samples: z.array(z.object({ at: z.string().datetime(), volume: z.number().nonnegative() })).max(4),
-  lastObservedAt: z.string().datetime(), lastSpikeAt: z.string().datetime().nullable()
+  lastObservedAt: z.string().datetime(), lastSpikeAt: z.string().datetime().nullable(),
+  latestVolume5mUsd: z.number().nonnegative().nullable().default(null),
+  lastVolumeAlertAt: z.string().datetime().nullable().default(null)
 });
 const stateSchema = z.object({
   version: z.union([z.literal(1), z.literal(2), z.literal(3)]).transform(() => 3 as const),
@@ -180,15 +185,28 @@ export class RunnerMonitor {
       }).slice(-3) ?? [];
       const baselineVolume = previous.length === 3 ? previous.reduce((sum, sample) => sum + sample.volume, 0) / 3 : null;
       const spikeConfig = volumeSpikeConfig(next.alertConfig, chain);
-      const spike = spikeConfig !== null && evaluateVolumeSpike(s, next.alertConfig, baselineVolume).passed
+      const volumeConfig = oldTokenVolumeConfig(next.alertConfig, chain);
+      // High-volume events share one cooldown; lower-volume legacy spike rules remain available.
+      const spike = (!volumeConfig.enabled || (s.volume5mUsd != null && s.volume5mUsd < volumeConfig.minVolume5mUsd))
+        && spikeConfig !== null && evaluateVolumeSpike(s, next.alertConfig, baselineVolume).passed
         && (!baseline?.lastSpikeAt || now - Date.parse(baseline.lastSpikeAt) >= spikeConfig.volumeSpikeCooldownMin * 60000);
       const qualifies = evaluateTokenAlert(s, next.alertConfig).passed;
-      if (spikeConfig && s.volume5mUsd != null && Number.isFinite(s.volume5mUsd) && s.volume5mUsd >= 0) {
+      const volumeSpike = baselineVolume !== null && baselineVolume > 0 && s.volume5mUsd != null
+        && s.volume5mUsd / baselineVolume >= volumeConfig.spikeMultiplier;
+      const crossing = baseline?.latestVolume5mUsd != null && baseline.latestVolume5mUsd < volumeConfig.minVolume5mUsd;
+      const volumeTrigger: RunnerRecord["volumeTrigger"] = volumeSpike ? "spike" : crossing ? "crossing" : "high";
+      const volumeAlert = evaluateOldTokenVolume(s, next.alertConfig)
+        && (!baseline?.lastVolumeAlertAt || crossing || volumeSpike)
+        && (!baseline?.lastVolumeAlertAt || now - Date.parse(baseline.lastVolumeAlertAt) >= volumeConfig.cooldownMin * 60000);
+      const preferVolume = volumeAlert && (!qualifies || s.dexAgeMinutes == null || s.dexAgeMinutes >= 1440);
+      if (s.volume5mUsd != null && Number.isFinite(s.volume5mUsd) && s.volume5mUsd >= 0) {
         if (!baseline) {
-          baseline = { chain, mint, samples: [], lastObservedAt: s.observedAt, lastSpikeAt: null };
+          baseline = { chain, mint, samples: [], lastObservedAt: s.observedAt, lastSpikeAt: null,
+            latestVolume5mUsd: null, lastVolumeAlertAt: null };
           next.volumeBaselines.push(baseline);
         }
         baseline.lastObservedAt = s.observedAt;
+        baseline.latestVolume5mUsd = s.volume5mUsd;
         const lastSample = baseline.samples.at(-1);
         if (!lastSample || now - Date.parse(lastSample.at) >= 300000) {
           baseline.samples.push({ at: s.observedAt, volume: s.volume5mUsd });
@@ -205,21 +223,25 @@ export class RunnerMonitor {
         volume5mUsd: s.volume5mUsd ?? null, swaps5m: s.swaps5m ?? null,
         totalFeesNative: s.totalFeesNative ?? null, feesNativeSymbol: s.feesNativeSymbol ?? null,
         dexAgeMinutes: s.dexAgeMinutes ?? null, baselineVolume5mUsd: baselineVolume,
-        spikeMultiplier: baselineVolume && s.volume5mUsd != null ? s.volume5mUsd / baselineVolume : null
+        spikeMultiplier: baselineVolume && s.volume5mUsd != null ? s.volume5mUsd / baselineVolume : null,
+        volumeTrigger: volumeAlert ? volumeTrigger : null, volumeThresholdUsd: volumeConfig.minVolume5mUsd
       };
       if (!existing) {
-        if ((!qualifies && !spike) || next.records.filter((entry) => entry.chain === chain).length >= 50) return;
+        const hasRoom = next.records.filter((entry) => entry.chain === chain).length < 50;
+        if ((!qualifies && !spike && !volumeAlert) || (!hasRoom && !volumeAlert)) return;
         const record: RunnerRecord = {
           chain, mint, symbol: s.symbol, firstSeenAt: s.observedAt, lastSeenAt: s.observedAt,
           initialPrice: s.priceUsd!, latestPrice: s.priceUsd!, peakPrice: s.priceUsd!,
           maxDrawdownPct: 0, score: assessment.score, candidate: true, observations: 1,
-          ...details, qualification: spike && !qualifies ? "spike" : "configured",
+          ...details, qualification: preferVolume ? "volume" : qualifies ? "configured" : "spike",
           liquidityUsd: s.liquidityUsd, marketCapUsd: s.marketCapUsd,
           riskNotes: s.dataWarnings ?? [],
           reached2xAt: null, reached5xAt: null
         };
-        next.records.push(record);
-        enqueue(next, spike && !qualifies ? "spike" : "candidate", record);
+        if (hasRoom) next.records.push(record);
+        enqueue(next, preferVolume ? "volume" : qualifies ? "candidate" : "spike", record);
+        // A new candidate already reports this observation; don't send a duplicate volume alert.
+        if (baseline && volumeAlert) baseline.lastVolumeAlertAt = s.observedAt;
         if (spike && baseline) baseline.lastSpikeAt = s.observedAt;
         return;
       }
@@ -232,7 +254,7 @@ export class RunnerMonitor {
       existing.peakPrice = Math.max(existing.peakPrice, s.priceUsd!);
       existing.maxDrawdownPct = Math.min(existing.maxDrawdownPct, (s.priceUsd! / existing.peakPrice - 1) * 100);
       existing.score = assessment.score;
-      existing.candidate = qualifies || spike;
+      existing.candidate = qualifies || spike || evaluateOldTokenVolume(s, next.alertConfig);
       existing.observations++;
       if (s.priceUsd! / existing.initialPrice >= 2 && !existing.reached2xAt) {
         existing.reached2xAt = s.observedAt;
@@ -242,7 +264,11 @@ export class RunnerMonitor {
         existing.reached5xAt = s.observedAt;
         enqueue(next, "5x", existing);
       }
-      if (spike) {
+      if (volumeAlert) {
+        const volumeRecord = { ...existing, qualification: "volume" as const };
+        enqueue(next, "volume", volumeRecord);
+        if (baseline) baseline.lastVolumeAlertAt = s.observedAt;
+      } else if (spike) {
         existing.qualification = "spike";
         enqueue(next, "spike", existing);
         if (baseline) baseline.lastSpikeAt = s.observedAt;
@@ -256,12 +282,14 @@ export class RunnerMonitor {
     this.delivering = true;
     try {
       const pending = this.snapshot().pendingAlerts.filter((entry) => chains.includes(entry.record.chain)
-        && this.chains.includes(entry.record.chain) && alertsEnabled(this.state.alertConfig, entry.record.chain));
+        && this.chains.includes(entry.record.chain) && alertsEnabled(this.state.alertConfig, entry.record.chain)
+        && (entry.kind !== "volume" || oldTokenVolumeConfig(this.state.alertConfig, entry.record.chain).enabled));
       let sent = 0;
       for (const event of pending) {
         if (!this.active) break;
         const chain = event.record.chain;
         if (!alertsEnabled(this.state.alertConfig, chain)) continue;
+        if (event.kind === "volume" && !oldTokenVolumeConfig(this.state.alertConfig, chain).enabled) continue;
         if ((counts[chain] ?? 0) >= maxAlertsPerScan(this.state.alertConfig, chain)) continue;
         if (sent >= 50) break;
         try {
@@ -306,7 +334,8 @@ export class RunnerMonitor {
         try { discovered = await this.adapter.discoverTokens?.(chain) ?? []; }
         catch { hadError = true; }
         timing.discoveryMs += Date.now() - discoveryStarted;
-        const tracked = this.state.records.filter((entry) => entry.chain === chain && Date.now() - Date.parse(entry.firstSeenAt) < 7 * 86400_000);
+        const tracked = this.state.records.filter((entry) => entry.chain === chain
+          && (oldTokenVolumeConfig(this.state.alertConfig, chain).enabled || Date.now() - Date.parse(entry.firstSeenAt) < 7 * 86400_000));
         queues.set(chain, [...new Set([...discovered, ...tracked.map((entry) => entry.mint)])]);
       }
       // Alternate networks rather than finishing one chain's entire tracked backlog first.
@@ -362,7 +391,7 @@ export function formatRunnerRecord(record: RunnerRecord, now = Date.now()): stri
 }
 
 function enqueue(state: RunnerState, kind: RunnerEvent["kind"], record: RunnerRecord): void {
-  const id = `${record.chain}:${record.mint}:${record.firstSeenAt}:${kind}${kind === "spike" ? `:${record.lastSeenAt}` : ""}`;
+  const id = `${record.chain}:${record.mint}:${record.firstSeenAt}:${kind}${kind === "spike" || kind === "volume" ? `:${record.lastSeenAt}` : ""}`;
   if (!state.pendingAlerts.some((event) => event.id === id)) {
     if (state.pendingAlerts.length >= 1000) throw new Error("Antrean alert penuh; pengiriman harus dipulihkan sebelum observasi baru disimpan.");
     state.pendingAlerts.push({ id, kind, record: structuredClone(record) });
