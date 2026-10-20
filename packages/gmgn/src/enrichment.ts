@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { normalizeAddress, base58AddressSchema, evmAddressSchema, tokenIntelligenceSchema,
+import { logger, normalizeAddress, base58AddressSchema, evmAddressSchema, tokenIntelligenceSchema,
   type AppConfig, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "./types.js";
 import { ProviderHttp, ProviderDataError, providerFailureReason } from "./http.js";
@@ -74,10 +74,18 @@ export class EnrichedAdapter implements GmgnAdapter {
 
   async discoverTokens(chain: Chain = "sol"): Promise<string[]> {
     if (chain !== "sol" || !this.tracker) return this.base.discoverTokens?.(chain) ?? [];
-    // Tracker is primary for Solana discovery; a failure is surfaced, not hidden by fixture data.
-    const raw = await this.tracker.request("/search?sortBy=volume_5m&sortOrder=desc&limit=10", undefined, false, 15000);
-    const parsed = z.object({ status: z.literal("success"), data: z.array(z.object({ mint: base58AddressSchema })) }).parse(raw);
-    return [...new Set(parsed.data.map((r) => r.mint))].slice(0, 10);
+    // Tracker is primary, but its search failure must not disable live GMGN discovery.
+    try {
+      const raw = await this.tracker.request("/search?sortBy=volume_5m&sortOrder=desc&limit=10", undefined, false, 15000);
+      const parsed = z.object({ status: z.literal("success"), data: z.array(z.object({ mint: base58AddressSchema })) }).parse(raw);
+      const tokens = [...new Set(parsed.data.map((r) => r.mint))].slice(0, 10);
+      if (tokens.length || !this.base.discoverTokens) return tokens;
+      logger.warn({ chain }, "Solana Tracker discovery empty; trying GMGN discovery");
+    } catch (error) {
+      if (!this.base.discoverTokens) throw error;
+      logger.warn({ chain, reason: providerFailureReason("Solana Tracker", error) }, "Solana discovery falling back to GMGN");
+    }
+    return this.base.discoverTokens!(chain);
   }
 
   private async optional(s: MarketSnapshot, name: string, work: () => Promise<void>, field?: "developer" | "fomo"): Promise<void> {

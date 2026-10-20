@@ -78,6 +78,7 @@ const baselineSchema = z.object({
   samples: z.array(z.object({ at: z.string().datetime(), volume: z.number().nonnegative() })).max(4),
   lastObservedAt: z.string().datetime(), lastSpikeAt: z.string().datetime().nullable(),
   latestVolume5mUsd: z.number().nonnegative().nullable().default(null),
+  lastCandidateAlertAt: z.string().datetime().nullable().default(null),
   lastVolumeAlertAt: z.string().datetime().nullable().default(null)
 });
 const stateSchema = z.object({
@@ -202,7 +203,7 @@ export class RunnerMonitor {
       if (s.volume5mUsd != null && Number.isFinite(s.volume5mUsd) && s.volume5mUsd >= 0) {
         if (!baseline) {
           baseline = { chain, mint, samples: [], lastObservedAt: s.observedAt, lastSpikeAt: null,
-            latestVolume5mUsd: null, lastVolumeAlertAt: null };
+            latestVolume5mUsd: null, lastVolumeAlertAt: null, lastCandidateAlertAt: null };
           next.volumeBaselines.push(baseline);
         }
         baseline.lastObservedAt = s.observedAt;
@@ -228,18 +229,21 @@ export class RunnerMonitor {
       };
       if (!existing) {
         const hasRoom = next.records.filter((entry) => entry.chain === chain).length < 50;
-        if ((!qualifies && !spike && !volumeAlert) || (!hasRoom && !volumeAlert)) return;
+        const candidateAlert = qualifies && !baseline?.lastCandidateAlertAt;
+        if (!candidateAlert && !spike && !volumeAlert) return;
+        const kind = preferVolume ? "volume" : candidateAlert ? "candidate" : volumeAlert ? "volume" : "spike";
         const record: RunnerRecord = {
           chain, mint, symbol: s.symbol, firstSeenAt: s.observedAt, lastSeenAt: s.observedAt,
           initialPrice: s.priceUsd!, latestPrice: s.priceUsd!, peakPrice: s.priceUsd!,
           maxDrawdownPct: 0, score: assessment.score, candidate: true, observations: 1,
-          ...details, qualification: preferVolume ? "volume" : qualifies ? "configured" : "spike",
+          ...details, qualification: kind === "candidate" ? "configured" : kind,
           liquidityUsd: s.liquidityUsd, marketCapUsd: s.marketCapUsd,
           riskNotes: s.dataWarnings ?? [],
           reached2xAt: null, reached5xAt: null
         };
         if (hasRoom) next.records.push(record);
-        enqueue(next, preferVolume ? "volume" : qualifies ? "candidate" : "spike", record);
+        enqueue(next, kind, record);
+        if (baseline && qualifies) baseline.lastCandidateAlertAt = s.observedAt;
         // A new candidate already reports this observation; don't send a duplicate volume alert.
         if (baseline && volumeAlert) baseline.lastVolumeAlertAt = s.observedAt;
         if (spike && baseline) baseline.lastSpikeAt = s.observedAt;

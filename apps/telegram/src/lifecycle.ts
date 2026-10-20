@@ -39,6 +39,11 @@ export function statusMessage(config: AppConfig, runner?: RunnerMonitor, deliver
     "Kirim CA langsung. Alamat 0x akan meminta pilihan BSC atau RH.",
     "Menu: /start, /scan, /help, /status, /chatid, /runner, /runners.",
     `Runner: ${runner?.active ? "AKTIF" : "NONAKTIF"}. Interval Solana/BSC/RH: /getconfig.`,
+    ...(state ? config.enabledChains.map((chain) => `${CHAIN_NAMES[chain]}: ${runner?.active && runner.chains.includes(chain)
+      && alertsEnabled(state.alertConfig, chain) ? "AKTIF" : "NONAKTIF"} | histori ${state.records.filter((r) => r.chain === chain).length}/50`
+      + ` | antrean ${state.pendingAlerts.filter((event) => event.record.chain === chain).length}`
+      + ` | polling terakhir: ${state.chainPolledAt[chain] ?? "belum ada"}`) : []),
+    state?.lastError ?? "",
     `Notifikasi ONLINE/OFFLINE: ${config.telegramStartupChatId ? "tujuan dikonfigurasi" : "NONAKTIF; isi TELEGRAM_STARTUP_CHAT_ID"}. Hasil terakhir: ${delivery ? `${delivery.event} ${delivery.result}` : "belum diuji"}.`,
     delivery?.error ?? "",
     `Notifikasi runner: ${config.telegramRunnerChatId ? "tujuan chat dikonfigurasi" : "NONAKTIF; isi TELEGRAM_RUNNER_CHAT_ID"}. Antrean: ${state?.pendingAlerts.length ?? 0}.`,
