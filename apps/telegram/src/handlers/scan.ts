@@ -64,7 +64,7 @@ export function createScanHandler(scanner: IntelligenceScanner, mode: "command" 
   };
 }
 
-async function scanInput(ctx: Context, text: string, scanner: IntelligenceScanner, runner?: RunnerMonitor): Promise<void> {
+export async function scanInput(ctx: Context, text: string, scanner: IntelligenceScanner, runner?: RunnerMonitor): Promise<void> {
   const input = await resolveTokenInput(ctx, text, "scan", scanner.chains);
   if (!input) return;
   try {

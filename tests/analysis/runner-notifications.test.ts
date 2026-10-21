@@ -21,8 +21,8 @@ describe("persistent runner notifications", () => {
     const { monitor } = await setup();
     const s = { ...live(), mint: evm };
     const time = Date.now();
-    await monitor.observe({ ...s, chain: "bsc", observedAt: new Date(time).toISOString() });
-    await monitor.observe({ ...s, chain: "robinhood", priceUsd: 10, observedAt: new Date(time).toISOString() });
+    await monitor.observe({ ...s, chain: "bsc", feesNativeSymbol: "BNB", observedAt: new Date(time).toISOString() });
+    await monitor.observe({ ...s, chain: "robinhood", feesNativeSymbol: "ETH", priceUsd: 10, observedAt: new Date(time).toISOString() });
     await monitor.observe({ ...s, chain: "bsc", priceUsd: 5, observedAt: new Date(time + 1000).toISOString() });
     await monitor.observe({ ...s, chain: "bsc", priceUsd: 6, observedAt: new Date(time + 2000).toISOString() });
     const state = monitor.snapshot();

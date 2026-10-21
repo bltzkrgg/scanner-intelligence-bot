@@ -118,7 +118,7 @@ Runner Score bukan skor risiko atau probabilitas profit. Ini rule eksperimen yan
 
 Rule skor di bawah masih ditampilkan pada laporan sebagai evaluasi eksperimen. Kandidat baru Solana/BSC/RH sekarang memakai filter volume5m, fees dan syarat admin lainnya di [runner-config.md](runner-config.md), bukan syarat skor >= 70. Volume spike Solana/BSC juga memiliki pemicu tersendiri.
 
-Ketiga jaringan juga mendukung [alert volume tanpa batas umur](old-token-volume.md): default >= $150K/5m dengan likuiditas >= $10K, tanpa syarat fees/market cap/umur. Status membedakan volume tinggi pertama ditemukan, crossing, dan spike terukur. Dengan fitur ini aktif (default), token tersimpan tetap dipantau meski deteksinya lebih dari tujuh hari lalu; discovery tetap terbatas hasil provider, bukan seluruh pasar.
+Ketiga jaringan juga mendukung [alert volume tanpa batas umur](old-token-volume.md): default >= $150K/5m dengan likuiditas >= $10K, tanpa batas market cap/umur dan minimum fees opsional (default 0/nonaktif). Status membedakan volume tinggi pertama ditemukan, crossing, dan spike terukur. Dengan fitur ini aktif (default), token tersimpan tetap dipantau meski deteksinya lebih dari tujuh hari lalu; discovery tetap terbatas hasil provider, bukan seluruh pasar.
 
 | Komponen | Poin |
 | --- | --- |

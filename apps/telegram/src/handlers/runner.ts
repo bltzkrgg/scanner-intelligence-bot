@@ -62,7 +62,7 @@ export function registerRunnerCommands(bot: Bot, monitor: RunnerMonitor, scanner
   }
 }
 
-async function runnerInput(ctx: Context, text: string, monitor: RunnerMonitor, scanner: IntelligenceScanner): Promise<void> {
+export async function runnerInput(ctx: Context, text: string, monitor: RunnerMonitor, scanner: IntelligenceScanner): Promise<void> {
     const input = await resolveTokenInput(ctx, text, "runner", scanner.chains);
     if (!input) return;
     try {

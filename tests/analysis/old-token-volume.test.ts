@@ -42,7 +42,8 @@ describe("age-independent rolling volume alerts", () => {
     for (const chain of ["sol", "bsc", "robinhood"] as const) {
       const section = sections[chain];
       expect(config[section].oldTokenVolume).toEqual({ enabled: true, minVolume5mUsd: 150000,
-        minLiquidityUsd: 10000, spikeMultiplier: 3, cooldownMin: 60 });
+        minLiquidityUsd: 10000, spikeMultiplier: 3, cooldownMin: 60,
+        [chain === "sol" ? "minTotalFeesSol" : chain === "bsc" ? "minTotalFeesBnb" : "minTotalFeesEth"]: 0 });
       for (const [key, value] of [["enabled", "yes"], ["minVolume5mUsd", "NaN"], ["minLiquidityUsd", "-1"],
         ["spikeMultiplier", "1"], ["cooldownMin", "0"], ["__proto__", "1"]]) {
         expect(() => updateAlertConfig(config, `${section}.oldTokenVolume.${key}`, value)).toThrow();

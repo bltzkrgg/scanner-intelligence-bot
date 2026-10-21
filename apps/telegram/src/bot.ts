@@ -8,6 +8,7 @@ import { registerUtilityCommands } from "./lifecycle.js";
 import { registerRunnerCommands } from "./handlers/runner.js";
 import { registerConfigCommands } from "./handlers/config.js";
 import { runTelegramRuntime } from "./runtime.js";
+import { registerTelegramMenus } from "./handlers/menus.js";
 
 const config = loadConfig();
 
@@ -27,6 +28,7 @@ const scanner = new IntelligenceScanner(adapter, undefined, config.enabledChains
 const runner = new RunnerMonitor(adapter, config.runnerStateFile, config.runnerEnabled, config.enabledChains);
 await runner.init();
 
+registerTelegramMenus(bot, runner, scanner, config);
 bot.command("start", startCommand);
 registerUtilityCommands(bot, config, runner);
 registerRunnerCommands(bot, runner, scanner, config);

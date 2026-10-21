@@ -36,7 +36,7 @@ describe("runtime runner alert settings", () => {
     for (const overrides of [{ marketCapUsd: 100000 }, { dexAgeMinutes: null }, { dexAgeMinutes: 31 },
       { volume5mUsd: null }, { volume5mUsd: 99999 }, { totalFeesNative: null }, { totalFeesNative: 9 },
       { runnerBlockReason: "Provider risk" }]) expect(evaluateTokenAlert({ ...s, ...overrides }, c).passed).toBe(false);
-    expect(evaluateTokenAlert({ ...s, chain: "robinhood", mint: evm, marketCapUsd: null, dexAgeMinutes: null, totalFeesNative: 0.1 }, c).passed).toBe(true);
+    expect(evaluateTokenAlert({ ...s, chain: "robinhood", mint: evm, marketCapUsd: null, dexAgeMinutes: null, totalFeesNative: 0.1, feesNativeSymbol: "ETH" }, c).passed).toBe(true);
   });
 
   it("parses rolling metrics, native fees and migration without creation-time fallback", () => {

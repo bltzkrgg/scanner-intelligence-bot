@@ -9,7 +9,7 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
   const short = r.chain === "robinhood" ? "RH" : network;
   const native = r.chain === "sol" ? "SOL" : r.chain === "bsc" ? "BNB" : "ETH";
   const hasFees = present(r.totalFeesNative) && r.feesNativeSymbol === native;
-  const complete = present(r.volume5mUsd) && hasFees
+  const complete = present(r.volume5mUsd) && (r.minimumTotalFeesNative === 0 || hasFees)
     && (r.chain === "robinhood" || (present(r.marketCapUsd) && present(r.dexAgeMinutes)));
   const legacy = r.qualification === "legacy";
   const delayed = now - Date.parse(r.lastSeenAt) > 15 * 60000;
@@ -60,7 +60,8 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
     detail = `Lonjakan: ${present(r.spikeMultiplier) ? `${number(r.spikeMultiplier)}x` : "N/A"}\nBaseline: ${usd(r.baselineVolume5mUsd, true)}`;
   } else {
     status = complete && r.qualification === "configured" ? `🟢 ${short} QUALIFIED` : "DATA DETEKSI BELUM LENGKAP";
-    detail = complete ? r.chain === "robinhood" ? "VOL • FEES" : "VOL • MC • FEES • AGE"
+    detail = complete ? ["VOL", ...(r.chain !== "robinhood" ? ["MC"] : []),
+      ...(r.minimumTotalFeesNative === 0 ? [] : ["FEES"]), ...(r.chain !== "robinhood" ? ["AGE"] : [])].join(" • ")
       : "Data wajib N/A.\nFilter belum terverifikasi.";
   }
   const notes = r.riskNotes.filter((note) => !isEnrichmentDiagnostic(note)).slice(0, 3).map((note) => escapeHtml(clip(note, 180)));

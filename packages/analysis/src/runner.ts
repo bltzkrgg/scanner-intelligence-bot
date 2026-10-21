@@ -5,7 +5,7 @@ import { chainSchema, normalizeAddress, tokenAddressSchema, tokenIntelligenceSch
 import type { GmgnAdapter } from "@sti/gmgn";
 import { alertConfigSchema, defaultAlertConfig, alertsEnabled, alertInterval, maxAlertsPerScan,
   evaluateTokenAlert, evaluateVolumeSpike, volumeSpikeConfig, updateAlertConfig,
-  oldTokenVolumeConfig, evaluateOldTokenVolume } from "./alert-config.js";
+  oldTokenVolumeConfig, evaluateOldTokenVolume, alertMinimumFees } from "./alert-config.js";
 
 export type RunnerAssessment = { score: number | null; candidate: boolean; reasons: string[] };
 
@@ -70,6 +70,7 @@ const recordSchema = z.object({
   qualification: z.enum(["legacy", "configured", "spike", "volume"]).default("legacy"),
   volumeTrigger: z.enum(["high", "crossing", "spike"]).nullable().default(null),
   volumeThresholdUsd: z.number().nonnegative().nullable().default(null),
+  minimumTotalFeesNative: z.number().nonnegative().nullable().default(null),
   reached2xAt: z.string().datetime().nullable(), reached5xAt: z.string().datetime().nullable()
 }).transform((record) => ({ ...record, mint: normalizeAddress(record.mint, record.chain) }));
 const eventSchema = z.object({ id: z.string(), kind: z.enum(["candidate", "spike", "volume", "2x", "5x"]), record: recordSchema });
@@ -187,8 +188,9 @@ export class RunnerMonitor {
       const baselineVolume = previous.length === 3 ? previous.reduce((sum, sample) => sum + sample.volume, 0) / 3 : null;
       const spikeConfig = volumeSpikeConfig(next.alertConfig, chain);
       const volumeConfig = oldTokenVolumeConfig(next.alertConfig, chain);
-      // High-volume events share one cooldown; lower-volume legacy spike rules remain available.
-      const spike = (!volumeConfig.enabled || (s.volume5mUsd != null && s.volume5mUsd < volumeConfig.minVolume5mUsd))
+      const volumeEligible = evaluateOldTokenVolume(s, next.alertConfig);
+      // Eligible volume events own their cooldown; otherwise legacy spike rules remain independent.
+      const spike = !volumeEligible
         && spikeConfig !== null && evaluateVolumeSpike(s, next.alertConfig, baselineVolume).passed
         && (!baseline?.lastSpikeAt || now - Date.parse(baseline.lastSpikeAt) >= spikeConfig.volumeSpikeCooldownMin * 60000);
       const qualifies = evaluateTokenAlert(s, next.alertConfig).passed;
@@ -196,7 +198,7 @@ export class RunnerMonitor {
         && s.volume5mUsd / baselineVolume >= volumeConfig.spikeMultiplier;
       const crossing = baseline?.latestVolume5mUsd != null && baseline.latestVolume5mUsd < volumeConfig.minVolume5mUsd;
       const volumeTrigger: RunnerRecord["volumeTrigger"] = volumeSpike ? "spike" : crossing ? "crossing" : "high";
-      const volumeAlert = evaluateOldTokenVolume(s, next.alertConfig)
+      const volumeAlert = volumeEligible
         && (!baseline?.lastVolumeAlertAt || crossing || volumeSpike)
         && (!baseline?.lastVolumeAlertAt || now - Date.parse(baseline.lastVolumeAlertAt) >= volumeConfig.cooldownMin * 60000);
       const preferVolume = volumeAlert && (!qualifies || s.dexAgeMinutes == null || s.dexAgeMinutes >= 1440);
@@ -225,7 +227,8 @@ export class RunnerMonitor {
         totalFeesNative: s.totalFeesNative ?? null, feesNativeSymbol: s.feesNativeSymbol ?? null,
         dexAgeMinutes: s.dexAgeMinutes ?? null, baselineVolume5mUsd: baselineVolume,
         spikeMultiplier: baselineVolume && s.volume5mUsd != null ? s.volume5mUsd / baselineVolume : null,
-        volumeTrigger: volumeAlert ? volumeTrigger : null, volumeThresholdUsd: volumeConfig.minVolume5mUsd
+        volumeTrigger: volumeAlert ? volumeTrigger : null, volumeThresholdUsd: volumeConfig.minVolume5mUsd,
+        minimumTotalFeesNative: alertMinimumFees(next.alertConfig, chain, "candidate")
       };
       if (!existing) {
         const hasRoom = next.records.filter((entry) => entry.chain === chain).length < 50;
@@ -237,6 +240,7 @@ export class RunnerMonitor {
           initialPrice: s.priceUsd!, latestPrice: s.priceUsd!, peakPrice: s.priceUsd!,
           maxDrawdownPct: 0, score: assessment.score, candidate: true, observations: 1,
           ...details, qualification: kind === "candidate" ? "configured" : kind,
+          minimumTotalFeesNative: alertMinimumFees(next.alertConfig, chain, kind),
           liquidityUsd: s.liquidityUsd, marketCapUsd: s.marketCapUsd,
           riskNotes: s.dataWarnings ?? [],
           reached2xAt: null, reached5xAt: null
@@ -258,7 +262,7 @@ export class RunnerMonitor {
       existing.peakPrice = Math.max(existing.peakPrice, s.priceUsd!);
       existing.maxDrawdownPct = Math.min(existing.maxDrawdownPct, (s.priceUsd! / existing.peakPrice - 1) * 100);
       existing.score = assessment.score;
-      existing.candidate = qualifies || spike || evaluateOldTokenVolume(s, next.alertConfig);
+      existing.candidate = qualifies || spike || volumeEligible;
       existing.observations++;
       if (s.priceUsd! / existing.initialPrice >= 2 && !existing.reached2xAt) {
         existing.reached2xAt = s.observedAt;
@@ -269,11 +273,13 @@ export class RunnerMonitor {
         enqueue(next, "5x", existing);
       }
       if (volumeAlert) {
-        const volumeRecord = { ...existing, qualification: "volume" as const };
+        const volumeRecord = { ...existing, qualification: "volume" as const,
+          minimumTotalFeesNative: alertMinimumFees(next.alertConfig, chain, "volume") };
         enqueue(next, "volume", volumeRecord);
         if (baseline) baseline.lastVolumeAlertAt = s.observedAt;
       } else if (spike) {
         existing.qualification = "spike";
+        existing.minimumTotalFeesNative = alertMinimumFees(next.alertConfig, chain, "spike");
         enqueue(next, "spike", existing);
         if (baseline) baseline.lastSpikeAt = s.observedAt;
       }

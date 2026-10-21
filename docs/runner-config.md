@@ -2,6 +2,8 @@
 
 ## Aktivasi
 
+Command tanpa argumen `/start`, `/getconfig`, dan `/setconfig` kini membuka menu bertombol. Lihat [menu Telegram dan minimum fees per jenis alert](telegram-menus.md). Command teks berargumen tetap tersedia.
+
 Pasang bot dengan [tutorial instalasi](installation.md), kemudian gunakan provider live sesuai [panduan multichain](multichain-and-alerts.md). Isi `.env`:
 
 ```dotenv
@@ -62,7 +64,7 @@ Di Telegram, admin menjalankan:
 3. Solana/BSC/RH memakai filter admin masing-masing di bawah untuk kandidat baru. Runner Score tetap informasi eksperimen terpisah, bukan syarat pengiriman alert.
 4. Kandidat baru dicatat sekali dengan harga saat deteksi, lalu event dimasukkan ke antrean persisten. CA yang dikirim langsung atau `/runner` juga bisa masuk histori ketika pemantauan dan alert chain aktif.
 5. Setelah observasi tersimpan, bot dapat langsung mengirim antreannya ke `TELEGRAM_RUNNER_CHAT_ID` tanpa menunggu seluruh siklus, bukan membroadcast ke seluruh user.
-6. Jika harga sampel mencapai 2x/5x dari harga pertama deteksi, masing-masing milestone dicatat sekali. Ketiga jaringan juga punya alert volume independen tanpa syarat umur/fees, serta baseline dan cooldown per jaringan dan CA; lihat [alert volume token lama](old-token-volume.md). Rule spike legacy Solana/BSC tetap tersedia di bawah ambang alert volume baru atau ketika fitur baru dimatikan.
+6. Jika harga sampel mencapai 2x/5x dari harga pertama deteksi, masing-masing milestone dicatat sekali. Ketiga jaringan juga punya alert volume independen tanpa syarat umur dan fees opsional, serta baseline dan cooldown per jaringan dan CA; lihat [alert volume token lama](old-token-volume.md). Rule spike legacy Solana/BSC tetap tersedia ketika filter volume token lama tidak terpenuhi atau ketika fitur itu dimatikan.
 
 `maxPerScan` membatasi jumlah pesan/event yang dikirim per jaringan per siklus, termasuk candidate, volume, spike dan milestone. Bukan batas seluruh token yang di-query. Sisa event tetap antre. Pengiriman gabungan dibatasi 50 event per flush dengan jeda minimal 1,1 detik antar pesan. Antrean maksimal 1.000 event; jika penuh observasi yang memerlukan event baru tidak disimpan, error terlihat pada status siklus. Pulihkan pengiriman, jangan menghapus state sembarangan.
 
@@ -82,6 +84,7 @@ Interval adalah jarak minimum antar awal polling jaringan, bukan jaminan ketepat
 | `tokenAlerts.maxAgeMin` | `30` | Umur DEX open/migration <= nilai ini; bilangan bulat 1-43200 menit |
 | `tokenAlerts.maxPerScan` | `5` | Bilangan bulat 1-50 |
 | `tokenAlerts.volumeSpikeMultiplier` | `3` | Rasio volume 5m terhadap baseline >= nilai ini; > 1, <= 1000 |
+| `tokenAlerts.volumeSpikeMinTotalFeesSol` | `10` | Minimum fees spike legacy, SOL; terpisah dari kandidat, 0 mematikan filter |
 | `tokenAlerts.volumeSpikeMinSwaps5m` | `50` | Minimal swaps rolling 5m; bilangan bulat >= 0 |
 | `tokenAlerts.volumeSpikeMinLiquidityUsd` | `10000` | Likuiditas minimal USD; >= 0 |
 | `tokenAlerts.volumeSpikeCooldownMin` | `360` | Jeda spike per CA; bilangan bulat 1-43200 menit |
@@ -102,7 +105,7 @@ Interval adalah jarak minimum antar awal polling jaringan, bukan jaminan ketepat
 
 New-token alert memerlukan harga live, volume, market cap, fees dan umur DEX sesuai threshold. Bukan syarat Runner Score >= 70. Runner Score tetap ditampilkan sebagai rule eksperimen terpisah, bukan probabilitas profit atau audit risiko lengkap. Periksa konsentrasi holder dan metrik risiko lain sendiri; filter momentum ini tidak menjadikan token aman.
 
-Spike memakai harga live, min volume/market cap/fees yang sama, ditambah multiplier, swaps dan likuiditas. Batas umur **tidak** diterapkan pada spike, agar token lama yang kembali aktif dapat terdeteksi.
+Spike legacy memakai harga live, min volume/market cap kandidat, ditambah multiplier, swaps, likuiditas dan `volumeSpikeMinTotalFeesSol` yang independen. Batas umur **tidak** diterapkan pada spike, agar token lama yang kembali aktif dapat terdeteksi. Saat upgrade state lama, minimum fees spike diwarisi dari fees kandidat yang tersimpan; perubahan berikutnya terpisah.
 
 Baseline adalah rata-rata 3 sampel rolling 5m terdahulu, dengan waktu akhir antar sampel minimal 5 menit. Sampel terakhir harus minimal 5 menit sebelum query sekarang dan seluruh sampel baseline maksimal berumur 30 menit. Butuh sedikitnya sekitar 15 menit observasi; polling 60 detik tidak berarti enam window 5m yang independen. Baseline nol/tidak lengkap tidak menghasilkan spike. Histori baseline dan cooldown disimpan saat restart; setelah jeda panjang baseline harus terkumpul lagi. Hanya token yang benar-benar pernah di-query punya baseline (maksimal 500 CA paling baru), bukan seluruh pasar.
 
@@ -122,6 +125,7 @@ Default berikut sesuai rancangan yang disetujui, bukan hasil optimasi/backtest p
 | `bscAlerts.maxAgeMin` | `60` | Maksimal umur DEX open/migration; bilangan bulat 1-43200 menit |
 | `bscAlerts.maxPerScan` | `5` | Bilangan bulat 1-50 |
 | `bscAlerts.volumeSpikeMultiplier` | `3` | Minimal rasio volume 5m/baseline; > 1, <= 1000 |
+| `bscAlerts.volumeSpikeMinTotalFeesBnb` | `0.5` | Minimum fees spike legacy, BNB; 0 mematikan filter, diwarisi dari kandidat saat migrasi state lama |
 | `bscAlerts.volumeSpikeMinSwaps5m` | `50` | Minimal swaps rolling 5m; bilangan bulat >= 0 |
 | `bscAlerts.volumeSpikeMinLiquidityUsd` | `20000` | Likuiditas minimal USD; >= 0 |
 | `bscAlerts.volumeSpikeCooldownMin` | `360` | Jeda spike per CA BSC; bilangan bulat 1-43200 menit |
@@ -165,11 +169,11 @@ Spike legacy BSC memakai baseline yang sama definisinya dengan Solana: 3 sampel 
 /setconfig robinhoodAlerts.maxPerScan 5
 ```
 
-Filter kandidat RH tidak memiliki batas umur/market cap atau config spike legacy. RH kini mendukung `robinhoodAlerts.oldTokenVolume.*`, termasuk spike dengan baseline dan tanpa minimum fees; lihat [pengaturan volume](old-token-volume.md). Respons security tetap diperlukan, indikator honeypot/wash trading positif tetap memblokir. Jika field honeypot RH tidak disediakan provider, keterbatasan itu ditampilkan, bukan diklaim aman.
+Filter kandidat RH tidak memiliki batas umur/market cap atau config spike legacy. RH kini mendukung `robinhoodAlerts.oldTokenVolume.*`, termasuk spike dengan baseline dan minimum fees ETH opsional (`oldTokenVolume.minTotalFeesEth`, default 0); lihat [pengaturan volume](old-token-volume.md). Respons security tetap diperlukan, indikator honeypot/wash trading positif tetap memblokir. Jika field honeypot RH tidak disediakan provider, keterbatasan itu ditampilkan, bukan diklaim aman.
 
 ## Sumber dan Definisi Data
 
-Volume/swaps berasal dari `token info.price.volume_5m` / `swaps_5m`. Fees memakai `token info.total_fee` native chain (SOL untuk Solana, BNB untuk BSC, ETH untuk RH), **bukan** `market trending.gas_fee` (rata-rata gas per transaksi), bukan USD, dan bukan fees rolling 5 menit. Nilai mentah total GMGN ditampilkan tanpa mengarang jendela akumulasinya. Jika field hilang, filter fees tidak lolos.
+Volume/swaps berasal dari `token info.price.volume_5m` / `swaps_5m`. Fees memakai `token info.total_fee` native chain (SOL untuk Solana, BNB untuk BSC, ETH untuk RH), **bukan** `market trending.gas_fee` (rata-rata gas per transaksi), bukan USD, dan bukan fees rolling 5 menit. Nilai mentah total GMGN ditampilkan tanpa mengarang jendela akumulasinya. Jika minimum fees positif, data hilang atau salah unit tidak lolos. Minimum 0 mematikan filter fees saja; nilai hilang tetap N/A dan filter keamanan tetap berlaku.
 
 Umur DEX memakai timestamp terbaru dari `migrated_timestamp` / `open_timestamp` yang disediakan provider, bukan `creation_timestamp`. Timestamp nol/hilang/di masa depan menghasilkan umur tidak tersedia dan menahan alert token baru Solana/BSC. Market cap dihitung harga dikali circulating supply. Ketersediaan seluruh field bergantung chain, token, dan akses provider.
 

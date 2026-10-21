@@ -6,7 +6,7 @@ Solana, BSC, dan Robinhood Chain memakai jalur volume independen dari filter kan
 
 - Default volume rolling 5 menit >= $150.000 dan likuiditas >= $10.000.
 - Harga positif dari GMGN live dan tidak diblokir keamanan provider. Blok honeypot, wash trading, authority, atau security yang diperlukan tetapi tidak tersedia tetap dihormati.
-- Tidak mensyaratkan minimum total fees, swaps, market cap, umur maksimum, atau baseline. Volume 24 jam tidak dipakai menggantikan volume 5 menit yang kosong.
+- Default tidak mensyaratkan minimum total fees (nilai 0); fees SOL/BNB/ETH dapat diaktifkan terpisah per chain. Swaps, market cap, umur maksimum, dan baseline bukan syarat wajib. Volume 24 jam tidak dipakai menggantikan volume 5 menit yang kosong.
 - `VOLUME TINGGI TERDETEKSI`: pertama kali ditemukan di atas ambang, tanpa bukti crossing atau baseline spike.
 - `VOLUME TEMBUS BATAS`: volume sebelumnya yang teramati di bawah ambang, sekarang >= ambang. Ini crossing antar sampel, bukan waktu crossing tick-by-tick.
 - `VOLUME SPIKE`: volume >= ambang dan rasio terhadap baseline >= multiplier. Jika crossing sekaligus spike, status spike diprioritaskan.
@@ -17,7 +17,7 @@ Token baru yang sekaligus lolos filter kandidat dan volume hanya mengirim satu k
 
 ## Konfigurasi
 
-Kelima key berikut tersedia pada masing-masing prefix `tokenAlerts`, `bscAlerts`, dan `robinhoodAlerts`:
+Key berikut tersedia pada masing-masing prefix `tokenAlerts`, `bscAlerts`, dan `robinhoodAlerts`:
 
 | Suffix | Default | Validasi |
 | --- | --- | --- |
@@ -26,6 +26,9 @@ Kelima key berikut tersedia pada masing-masing prefix `tokenAlerts`, `bscAlerts`
 | `oldTokenVolume.minLiquidityUsd` | `10000` | Angka finite >= 0, USD |
 | `oldTokenVolume.spikeMultiplier` | `3` | > 1 hingga 1000 |
 | `oldTokenVolume.cooldownMin` | `60` | Bilangan bulat 1-43200 menit |
+| `oldTokenVolume.minTotalFeesSol` / `minTotalFeesBnb` / `minTotalFeesEth` | `0` | Pilih key sesuai chain; finite >= 0, 0 mematikan filter |
+
+Menu tombol, tabel key fees lengkap, dan perilaku filter per jenis alert dijelaskan di [menu Telegram](telegram-menus.md). Jika minimum fees positif, data fees hilang atau satuan native salah tidak lolos. Spike Legacy mempunyai minimum fees sendiri dan masih dapat lolos bila filter volume token lama tidak terpenuhi; jangan menganggap satu field fees berlaku untuk semua jenis alert.
 
 ```text
 /getconfig tokenAlerts
