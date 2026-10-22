@@ -1,10 +1,21 @@
 import { z } from "zod";
 import { chainSchema } from "./chains.js";
 
+const discordId = z.string().regex(/^[1-9]\d{16,19}$/);
+const optionalDiscordId = z.union([z.literal(""), discordId]).optional();
+const discordIds = z.string().default("").transform((value) => value ? value.split(",").map((id) => discordId.parse(id.trim())) : []);
+
 const configSchema = z.object({
   nodeEnv: z.string().default("development"),
   databaseUrl: z.string().optional(),
   telegramBotToken: z.string().optional(),
+  discordBotToken: z.string().trim().optional(),
+  discordGuildId: optionalDiscordId,
+  discordChannelIds: discordIds,
+  discordAdminIds: discordIds,
+  discordStartupChannelId: optionalDiscordId,
+  discordRunnerChannelId: optionalDiscordId,
+  discordRunnerStateFile: z.string().min(1).default("data/discord-runners.json"),
   telegramStartupChatId: z.union([z.literal(""), z.string().regex(/^-?[1-9]\d*$/)]).optional(),
   telegramRunnerChatId: z.union([z.literal(""), z.string().regex(/^-?[1-9]\d*$/)]).optional(),
   enabledChains: z.string().default("sol,bsc,robinhood")
@@ -45,6 +56,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     nodeEnv: env.NODE_ENV,
     databaseUrl: env.DATABASE_URL,
     telegramBotToken: env.TELEGRAM_BOT_TOKEN,
+    discordBotToken: env.DISCORD_BOT_TOKEN,
+    discordGuildId: env.DISCORD_GUILD_ID,
+    discordChannelIds: env.DISCORD_CHANNEL_IDS,
+    discordAdminIds: env.DISCORD_ADMIN_IDS,
+    discordStartupChannelId: env.DISCORD_STARTUP_CHANNEL_ID,
+    discordRunnerChannelId: env.DISCORD_RUNNER_CHANNEL_ID,
+    discordRunnerStateFile: env.DISCORD_RUNNER_STATE_FILE,
     telegramStartupChatId: env.TELEGRAM_STARTUP_CHAT_ID,
     telegramRunnerChatId: env.TELEGRAM_RUNNER_CHAT_ID,
     enabledChains: env.ENABLED_CHAINS,

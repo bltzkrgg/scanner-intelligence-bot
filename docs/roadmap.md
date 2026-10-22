@@ -1,6 +1,6 @@
 # Rencana Smart Wallet, Token Runner, dan Multichain
 
-Status per 18 Oktober 2026: scan live dan runner Solana/BSC/Robinhood Chain serta alert Telegram sudah tersedia; lihat [aktivasi multichain](multichain-and-alerts.md). Bank wallet user, Discord, dan Ethereum masih rencana. Tutorial dasar ada di [installation.md](installation.md).
+Scan live dan runner Solana/BSC/Robinhood Chain serta alert Telegram dan Discord tersedia; lihat [aktivasi multichain](multichain-and-alerts.md) dan [tutorial Discord](discord.md). Bank wallet user dan Ethereum masih rencana. Tutorial dasar ada di [installation.md](installation.md).
 
 Konfigurasi alert Solana/BSC/RH lewat `/setconfig` dan volume spike Solana/BSC kini tersedia; lihat [mekanisme, key, dan contoh notifikasi](runner-config.md). Integrasi [multi-provider](providers.md) menambah Solana Tracker, Helius, MadeOnSol dan FOMO. Batasan smart money flow 1h, LP lock, posisi Meteora dan cluster lengkap dicatat pada panduan provider dan [backlog GMGN](gmgn-enrichment-backlog.md).
 
@@ -22,7 +22,7 @@ Simpan harga, market cap, likuiditas, dan waktu pertama deteksi. Pantau perubaha
 
 ## Telegram dan Discord
 
-Kedua platform akan memakai layanan analisis dan database yang sama. Rencana antarmuka: CA langsung, command scan, pengelolaan bank wallet sesuai peran, daftar kandidat runner, dan detail laporan. Discord membutuhkan aplikasi bot, izin channel, dan konfigurasi intent untuk pembacaan pesan biasa. Belum ada script startup Discord atau variabel konfigurasinya pada repository ini.
+Kedua platform memakai layanan analisis dan adapter provider yang sama, tetapi proses dan file state runner terpisah. Discord mendukung CA langsung, slash command, pilihan chain, laporan embed, detail risiko, histori runner dan konfigurasi admin. Jalankan `pnpm discord:dev` atau `ecosystem.discord.config.cjs`; aplikasi bot, intent dan izin channel tetap harus dikonfigurasi. Bank wallet lintas platform, database bersama dan sinkronisasi filter belum diimplementasikan.
 
 ## Empat Jaringan
 
@@ -38,7 +38,7 @@ Identitas wallet/token memakai pasangan chain dan alamat. Aktivitas wallet serta
 4. Implementasikan sinkronisasi dengan pembatasan request, penanganan duplikasi, dan penanda kesegaran data.
 5. Hubungkan bukti aktivitas wallet ke skor dan laporan.
 6. Implementasikan deteksi runner dan histori performa sesuai scope yang disetujui.
-7. Tambahkan Discord dan pemilihan chain pada kedua platform.
+7. Discord dan pemilihan chain tersedia; sinkronisasi bank wallet lintas platform masih rencana.
 8. Uji lalu perbarui tutorial dengan command, environment, dan service yang benar-benar tersedia.
 
 Alert kandidat runner dan milestone 2x/5x tersedia ke satu chat yang dikonfigurasi. Alert transaksi wallet dan broadcast per-user masih di luar scope versi ini.

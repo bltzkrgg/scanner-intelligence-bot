@@ -13,7 +13,7 @@ Panduan ini diperbarui pada 18 Oktober 2026 berdasarkan kode dalam repository.
 | Telegram: CA langsung, `/start`, `/scan` | Tersedia |
 | Scan Solana dengan data contoh | Tersedia, default `GMGN_PROVIDER=mock` |
 | Query GMGN CLI untuk Solana | Token info/security dan discovery; lihat panduan live |
-| Discord | Rencana; belum ada aplikasi atau script startup |
+| Discord | Tersedia: CA langsung, slash command, embed dan runner; [tutorial Discord](discord.md) |
 | Bank smart wallet bersama dan pengaruh ke skor | Rencana; belum ada command penambahan wallet |
 | Deteksi kandidat runner dan pelacakan performa | Tersedia di Telegram dengan provider live dan worker opsional |
 | BSC, Robinhood Chain dan pemilihan chain | Tersedia; lihat panduan multichain dan alert |
@@ -21,7 +21,7 @@ Panduan ini diperbarui pada 18 Oktober 2026 berdasarkan kode dalam repository.
 | Notifikasi runner | Kandidat baru dan milestone 2x/5x ke TELEGRAM_RUNNER_CHAT_ID |
 | Penyimpanan laporan dan aktivitas wallet di PostgreSQL | Belum terhubung |
 
-Aktivasi data nyata, command runner, dan penyimpanan histori dijelaskan di [panduan live dan runner](live-and-runner.md). Rincian pengembangan berikutnya ada di [rencana fitur](roadmap.md). Mengisi token Discord atau memasang database saja belum mengaktifkan fitur yang masih direncanakan.
+Aktivasi data nyata, command runner, dan penyimpanan histori dijelaskan di [panduan live dan runner](live-and-runner.md). Untuk Discord, ikuti [pembuatan bot, intent, env dan PM2](discord.md); proses terpisah dari Telegram. Rincian pengembangan berikutnya ada di [rencana fitur](roadmap.md). Memasang database saja belum mengaktifkan bank wallet yang masih direncanakan.
 
 ## Jalur Cepat Telegram
 
@@ -372,7 +372,8 @@ Jangan menjalankan proses terminal dan service systemd dengan token bot yang sam
 | CA langsung tidak dibalas di grup | Periksa privacy mode BotFather dan izin bot membaca/mengirim pesan |
 | CA langsung tidak dibalas di chat pribadi | Kirim satu alamat Solana saja; cek proses bot dan log |
 | Alamat `0x...` tidak dibalas | Update bot, gunakan tombol BSC/RH atau /scan bsc CA; cek ENABLED_CHAINS |
-| Command wallet atau Discord tidak tersedia | Masih rencana; lihat roadmap |
+| Command wallet tidak tersedia | Masih rencana; lihat roadmap |
+| Command Discord tidak tersedia | Jalankan proses Discord dan cek guild, scope invite, intent serta izin; [panduan Discord](discord.md) |
 | Runner nonaktif/tidak ada kandidat | Cek RUNNER_ENABLED, mode cli, TELEGRAM_ADMIN_IDS dan /runners; kandidat hanya dicatat bila memenuhi syarat |
 | PostgreSQL tidak berisi laporan | Persistence belum terhubung pada MVP |
 | Build gagal pada Node lama | Gunakan versi kompatibel dan install dependency ulang |

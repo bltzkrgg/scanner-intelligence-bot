@@ -1,6 +1,8 @@
 # Token Intelligence Bot
 
-Scanner token Solana, BSC, dan Robinhood Chain (RH) melalui Telegram dan HTTP API. Kirim CA langsung atau `/scan <chain> <CA>`. Untuk alamat EVM tanpa chain, bot menampilkan tombol BSC/RH. Pesan biasa diabaikan.
+Scanner token Solana, BSC, dan Robinhood Chain (RH) melalui Telegram, Discord, dan HTTP API. Kirim CA langsung atau command scan. Untuk alamat EVM tanpa chain, bot menampilkan tombol BSC/RH. Pesan biasa diabaikan.
+
+Discord tersedia lewat `pnpm discord:dev`, dengan slash command, embed, CA langsung, admin filter, serta alert runner. Ikuti [tutorial Discord dari pembuatan bot sampai PM2](docs/discord.md). Proses dan file state Discord terpisah dari Telegram; keduanya dapat berjalan bersamaan dengan tambahan pemakaian kuota provider.
 
 Laporan Telegram kini ringkas, dengan CA monospace, angka K/M/B, waktu WIB, dan tombol Refresh, Detail Risiko, Status Runner, GMGN, Explorer, serta Salin CA. Lihat [panduan laporan dan tombol](docs/telegram-reports.md). Refresh memperbarui pesan yang sama melalui query provider baru, bukan sekadar mengganti timestamp.
 
@@ -57,7 +59,7 @@ Kedua script memuat `.env` dari root repo. Bot dan API adalah proses independen;
 
 ## Rencana Berikutnya
 
-Bank smart wallet bersama milik user, Discord, dan Ethereum masih berupa rencana. Runner memakai label smart money provider, bukan bank wallet user. Lihat [rencana fitur](docs/roadmap.md) dan [panduan runner](docs/live-and-runner.md).
+Bank smart wallet bersama milik user dan Ethereum masih berupa rencana. Runner memakai label smart money provider, bukan bank wallet user. Lihat [rencana fitur](docs/roadmap.md) dan [panduan runner](docs/live-and-runner.md).
 
 ## Komponen
 
@@ -65,6 +67,7 @@ Bank smart wallet bersama milik user, Discord, dan Ethereum masih berupa rencana
 | --- | --- |
 | `apps/api` | Fastify, `POST /scan` |
 | `apps/telegram` | grammY, `/start` dan `/scan` |
+| `apps/discord` | discord.js, CA langsung, slash command, embed dan runner |
 | `packages/gmgn` | Adapter snapshot fixture dan GMGN CLI |
 | `packages/analysis` | Normalisasi, skor, klasifikasi, risiko |
 | `packages/benchmark` | Cohort, percentile, token mirip |

@@ -312,7 +312,7 @@ export class RunnerMonitor {
           sent++;
         } catch {
           await this.mutate((next) => {
-            next.lastNotificationError = "Notifikasi runner gagal. Periksa chat ID/izin Telegram; antrean dipertahankan.";
+            next.lastNotificationError = "Notifikasi runner gagal. Periksa tujuan/izin bot; antrean dipertahankan.";
           });
           break;
         }

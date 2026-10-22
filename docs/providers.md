@@ -125,7 +125,7 @@ Cache enrichment default 300 detik per endpoint dibagi oleh scan dan runner dala
 
 ## Batasan yang Belum Diimplementasikan
 
-Mengisi semua key tidak berarti semua field lengkap. Posisi likuiditas Meteora, pemeriksaan saldo on-chain wallet FOMO, full transfer cluster/bubble map, LP locked %, Dex Paid dan smart-money USD flow 1h belum tersedia pada implementasi ini. Helius saat ini hanya memverifikasi authority; FOMO hold adalah laporan provider, bukan verifikasi saldo Helius. Histori deployer RH di luar 100 token tidak dipaginasi otomatis; statistik total hanya dipakai jika eksplisit dari provider. ETH belum menjadi jaringan aplikasi yang aktif. Bank smart wallet user dan Discord juga belum diaktifkan oleh integrasi ini.
+Mengisi semua key tidak berarti semua field lengkap. Posisi likuiditas Meteora, pemeriksaan saldo on-chain wallet FOMO, full transfer cluster/bubble map, LP locked %, Dex Paid dan smart-money USD flow 1h belum tersedia pada implementasi ini. Helius saat ini hanya memverifikasi authority; FOMO hold adalah laporan provider, bukan verifikasi saldo Helius. Histori deployer RH di luar 100 token tidak dipaginasi otomatis; statistik total hanya dipakai jika eksplisit dari provider. ETH dan bank smart wallet user belum aktif. [Discord](discord.md) memakai adapter provider yang sama dengan proses dan state runner terpisah.
 
 RH memakai `MADEONSOL_API_KEY` dan `MADEONSOL_ENABLED` yang sama, tanpa variabel env tambahan. Enrichment RH lama dalam state mendapat field graduation null saat dibaca, bukan diisi dari bonding Solana atau data masa depan. Format baru hanya berlaku pada query/pengiriman berikutnya.
 
