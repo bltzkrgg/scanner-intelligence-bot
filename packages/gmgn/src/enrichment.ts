@@ -197,10 +197,10 @@ export class EnrichedAdapter implements GmgnAdapter {
     const window = this.config.fomoLeaderboardWindow;
     const board = z.object({ window: z.literal(window), capturedAt: z.string().datetime(), traders: z.array(z.object({
       rank: z.number().int().positive(), userId: z.string().min(1), handle: z.string().min(1)
-    })).max(150) }).parse(await this.fomo!.request(`/v2/leaderboard/${window}?limit=100`, undefined, force));
+    })).max(150) }).parse(await this.fomoRequest(`leaderboard ${window}`, `/v2/leaderboard/${window}?limit=100`, force));
     const age = Date.now() - Date.parse(board.capturedAt);
     if (age > 15 * 60000 || age < -60000) throw new ProviderDataError("FOMO: timestamp leaderboard kedaluwarsa (>15 menit) atau clock server tidak sesuai.");
-    const rawHolders = await this.fomo!.request(`/token/${mint}/holders?chain=${chain === "sol" ? "solana" : chain}&limit=100`, undefined, force);
+    const rawHolders = await this.fomoRequest("token holders", `/token/${mint}/holders?chain=${chain === "sol" ? "solana" : chain}&limit=100`, force);
     const availability = z.object({ available: z.boolean().optional(), scope: z.string().optional(),
       stale: z.boolean().optional(), source: z.string().optional() }).parse(rawHolders);
     if (availability.available === false) throw new ProviderDataError("FOMO: provider belum mempunyai data holder token/chain ini.");
@@ -216,5 +216,10 @@ export class EnrichedAdapter implements GmgnAdapter {
     // Holder endpoint is top-only and has no completeness guarantee: even zero is a partial observation.
     s.intelligence!.fomo = { window, matched, checked: matched, total: ranked.length, complete: false, capturedAt: board.capturedAt };
     s.dataWarnings!.push("FOMO: pencocokan Top 100 parsial dari daftar top holder; tidak membuktikan trader lain tidak hold.");
+  }
+
+  private async fomoRequest(stage: string, path: string, force = false): Promise<unknown> {
+    try { return await this.fomo!.request(path, undefined, force); }
+    catch (error) { throw new ProviderDataError(`FOMO: query gagal (${stage}): ${providerFailureReason("FOMO", error)}`); }
   }
 }

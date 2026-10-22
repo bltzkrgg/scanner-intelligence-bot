@@ -41,6 +41,12 @@ pm2 restart ecosystem.config.cjs --only scanner-telegram --update-env
 
 Key terisi hanya mengaktifkan request, bukan menjamin akses/kuota atau data token. Jalankan diagnostik dari direktori repository server:
 
+Diagnostik sekarang membedakan tahap FOMO `leaderboard <window>` dan `token holders`. Error transport membaca kode yang diizinkan dari nested cause/aggregate Node: DNS, TLS, koneksi reset/ditolak, dan timeout. Redirect dilaporkan dengan status 3xx tetapi tidak diikuti; key tidak diteruskan ke host lain. HTTP gagal menampilkan kategori respons HTML/JSON/lain, bukan isi respons. HTML 403 tidak membuktikan masalah paket dan JSON 403 tidak otomatis membuktikan key salah.
+
+Output juga memuat versi Node/platform dan boolean keberadaan konfigurasi proxy/CA tambahan serta flag verifikasi TLS nonaktif. Nilai/path/proxy credential tidak dicetak; `proxyConfigured=true` bukan bukti fetch Node benar-benar memakai proxy tersebut. Jangan menonaktifkan verifikasi TLS atau menghapus filter data untuk memaksa hasil muncul.
+
+HTTP 200 dari `curl .../health` hanya membuktikan endpoint publik tersebut terjangkau pada saat tes dengan curl. Itu tidak menguji autentikasi leaderboard/holder atau trust store/rute koneksi Node. Perbaikan diagnostik ini tidak dengan sendirinya memperbaiki akses provider dan tidak mengisi N/A dengan nilai buatan.
+
 ```bash
 pnpm providers:check sol <CA>
 # atau: pnpm providers:check rh <CA>

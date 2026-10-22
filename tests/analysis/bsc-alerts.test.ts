@@ -89,9 +89,10 @@ describe("BSC configurable runner", () => {
 
   it("uses configured BSC filters rather than the old Runner Score gate", async () => {
     const { monitor } = await setup();
-    await monitor.observe({ ...bsc(), volume5mUsd: 49999 });
+    const now = Date.now();
+    await monitor.observe({ ...bsc(), volume5mUsd: 49999, observedAt: new Date(now).toISOString() });
     expect(monitor.snapshot().records).toHaveLength(0);
-    await monitor.observe({ ...bsc(), priceChange1hPct: -20, buys1h: 1, sells1h: 100 });
+    await monitor.observe({ ...bsc(), priceChange1hPct: -20, buys1h: 1, sells1h: 100, observedAt: new Date(now + 1000).toISOString() });
     expect(monitor.snapshot().records).toHaveLength(1);
     expect(monitor.snapshot().records[0].score).toBeLessThan(70);
     expect(monitor.snapshot().records[0].qualification).toBe("configured");
