@@ -50,8 +50,9 @@ describe("multi-provider enrichment", () => {
     const result = await new IntelligenceScanner(adapter).scan(mint);
     const s = result.snapshot;
     expect(s.priceUsd).toBe(1);
-    expect(s.bundlerPct).toBe(6.8);
-    expect(s.sniperPct).toBe(0);
+    expect(s.bundlerPct).toBeNull();
+    expect(s.sniperPct).toBeNull();
+    expect(s.intelligence!.sniperWalletCount).toBe(99);
     expect(s.developerTokenCount).toBe(12);
     expect(s.intelligence).toMatchObject({ dex: "PumpSwap", developerBondedCount: 3,
       developerBondRatePct: 25, mintAuthorityRevoked: true, freezeAuthorityRevoked: true,
@@ -72,8 +73,9 @@ describe("multi-provider enrichment", () => {
     expect(text).toContain("INTELLIGENCE");
     expect(text).toContain("PumpSwap");
     expect(text).toContain("1 terdeteksi • 7d • parsial");
-    expect(text).toContain("6.8% supply");
-    expect(text).toContain("0% supply");
+    expect(text).toContain("99 wallet");
+    expect(text).not.toContain("6.8% supply");
+    expect(text).not.toContain("0% supply");
     const restarted = new RunnerMonitor(adapter, file, true, ["sol"]);
     await restarted.init();
     expect(restarted.snapshot().pendingAlerts[0]).toEqual(event);

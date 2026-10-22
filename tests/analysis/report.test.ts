@@ -53,7 +53,7 @@ describe("Telegram report", () => {
     expect(report).toContain("Benchmark historis: belum tersedia");
     const risk = formatTelegramRisk(result);
     expect(risk).toContain("Insider holdings: belum tersedia");
-    expect(risk).toContain("Bundler exposure: belum tersedia");
+    expect(risk).toContain("Bundler: belum tersedia");
     expect(risk).not.toContain("Developer rug rate");
   });
 

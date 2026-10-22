@@ -114,15 +114,17 @@ describe("provider payload and authentication fixes", () => {
     expect(s.dataWarnings!.join(" ")).not.toContain("format respons");
   });
 
-  it("fetches the dedicated bundler percentage when token-info omits it, preserving zero sniper exposure", async () => {
+  it("does not fetch Tracker bundlers or replace GMGN activity with Tracker supply percentages", async () => {
     const request = vi.fn(async (input: string | URL | Request) => Response.json(String(input).endsWith("/bundlers")
       ? { total: 2, percentage: 6.73, wallets: [] }
       : { token: { mint }, pools: [{ tokenAddress: mint, market: "PumpSwap", liquidity: { usd: 100000 }, lastUpdated: Date.now() }],
         risk: { snipers: { totalPercentage: 0 } } }));
     const s = await new EnrichedAdapter({ getTokenSnapshot: async () => live() }, loadConfig({ SOLANA_TRACKER_API_KEY: "SECRET" }), request as typeof fetch)
       .getTokenSnapshot(mint);
-    expect(s.bundlerPct).toBe(6.73); expect(s.sniperPct).toBe(0);
-    expect(request).toHaveBeenCalledTimes(2);
+    expect(s.bundlerPct).toBeNull(); expect(s.sniperPct).toBeNull();
+    expect(s.intelligence!.sniperWalletCount).toBe(99);
+    expect(request).toHaveBeenCalledOnce();
+    expect(String(request.mock.calls[0][0])).not.toContain("/bundlers");
     expect(s.intelligence!.sources).toEqual(["GMGN", "Solana Tracker"]);
   });
 });

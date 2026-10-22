@@ -47,8 +47,8 @@ export function formatTelegramRisk(result: IntelligenceResult): string {
   return [heading(result), "", "*Detail Risiko*", "",
     escapeMarkdown(`Top 10 holder: ${percent(s.top10HolderPct)}`),
     escapeMarkdown(`Insider holdings: ${percent(s.insiderPct)}`),
-    escapeMarkdown(`Bundler exposure: ${percent(s.bundlerPct)}`),
-    escapeMarkdown(`Sniper exposure: ${percent(s.sniperPct)}`), "",
+    escapeMarkdown(`Bundler: ${walletMetric(s.intelligence?.bundlerWalletCount, s.bundlerPct)}`),
+    escapeMarkdown(`Sniper: ${walletMetric(s.intelligence?.sniperWalletCount, s.sniperPct)}`), "",
     "*Developer & Smart Money*",
     escapeMarkdown(`Token diluncurkan developer: ${number(s.developerTokenCount, 0)}`),
     escapeMarkdown(`Smart money holder (label GMGN): ${number(s.smartMoneyHolderCount, 0)}`),
@@ -72,7 +72,9 @@ function intelligenceSummary(s: MarketSnapshot, detailed = false): string[] {
   const lines = [
     `DEX: ${i.dex ?? "belum tersedia"}`,
     `KOL holder: ${number(i.kolHolderCount, 0)}`,
-    `Bundler: ${percent(s.bundlerPct)} | Sniper: ${percent(s.sniperPct)}`,
+    `Bundler: ${walletMetric(i.bundlerWalletCount, s.bundlerPct)}`,
+    `Sniper: ${walletMetric(i.sniperWalletCount, s.sniperPct)}`,
+    ...(i.bundlerVolumePct != null ? [`Bundler volume: ${percent(i.bundlerVolumePct)} volume (GMGN), bukan supply`] : []),
     i.fomo ? `FOMO Top 100 (${i.fomo.window}): ${i.fomo.matched} trader terdeteksi hold (parsial)` : "FOMO Top 100: belum tersedia",
     s.chain === "robinhood"
       ? `Developer: ${number(s.developerTokenCount, 0)} token | Graduated: ${number(i.developerGraduatedCount, 0)} (${percent(i.developerGraduationRatePct)})`
@@ -163,6 +165,10 @@ function usd(value: number | null | undefined, compact = false): string {
 
 function percent(value: number | null | undefined, signed = false): string {
   return value == null || !Number.isFinite(value) ? "belum tersedia" : `${signed && value > 0 ? "+" : ""}${number(value)}%`;
+}
+
+function walletMetric(count: number | null | undefined, supplyPct: number | null | undefined): string {
+  return count != null ? `${number(count, 0)} wallet` : supplyPct != null ? `${percent(supplyPct)} supply` : "belum tersedia";
 }
 
 function source(value: string): string { return value === "gmgn-cli" ? "GMGN" : value; }

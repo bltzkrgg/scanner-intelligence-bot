@@ -9,13 +9,10 @@ const numeric = z.preprocess((v) => v === null || v === undefined || v === "" ? 
   z.number().finite().nullable()).optional();
 const nonnegative = numeric.refine((v) => v == null || v >= 0);
 const count = nonnegative.refine((v) => v == null || Number.isSafeInteger(v));
-const pct = nonnegative.refine((v) => v == null || v <= 100);
 const trackerSchema = z.object({
   token: z.object({ mint: base58AddressSchema, creation: z.object({ creator: base58AddressSchema.optional() }).optional() }),
   pools: z.array(z.object({ tokenAddress: base58AddressSchema, market: z.string().max(100),
-    liquidity: z.object({ usd: nonnegative }), lastUpdated: nonnegative })).max(500),
-  risk: z.object({ snipers: z.object({ totalPercentage: pct }).optional(),
-    bundlers: z.object({ totalPercentage: pct }).optional() }).optional()
+    liquidity: z.object({ usd: nonnegative }), lastUpdated: nonnegative })).max(500)
 });
 
 export type EnrichmentConfig = Pick<AppConfig, "solanaTrackerApiKey" | "heliusApiKey" | "madeonsolApiKey" |
@@ -105,18 +102,7 @@ export class EnrichedAdapter implements GmgnAdapter {
     const pool = fresh.sort((a, b) => (b.liquidity.usd ?? 0) - (a.liquidity.usd ?? 0))[0];
     s.intelligence!.deployer ??= data.token.creation?.creator ?? null;
     s.intelligence!.dex = pool?.market ?? null;
-    // Only documented supply percentages, never bundler counts or trading-volume ratios.
-    if (pool) {
-      s.bundlerPct ??= data.risk?.bundlers?.totalPercentage ?? null;
-      s.sniperPct ??= data.risk?.snipers?.totalPercentage ?? null;
-    }
     if (!pool) s.dataWarnings!.push("Solana Tracker: pool terbaru belum tersedia.");
-    if (pool && s.bundlerPct == null) {
-      try {
-        const bundlers = z.object({ percentage: pct }).parse(await this.tracker!.request(`/tokens/${mint}/bundlers`, undefined, force));
-        s.bundlerPct = bundlers.percentage ?? null;
-      } catch (error) { s.dataWarnings!.push(providerFailureReason("Solana Tracker bundlers", error)); }
-    }
   }
 
   private async authorities(s: MarketSnapshot, mint: string, force = false): Promise<void> {

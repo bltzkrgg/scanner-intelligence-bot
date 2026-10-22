@@ -30,12 +30,16 @@ export function formatRunnerNotification(event: RunnerEvent, now = Date.now()): 
     ["Wallets", i?.topHolderPcts.length ? i.topHolderPcts.slice(0, 5).map((p) => `${number(p)}%`).join(" • ") : "N/A"],
     ["Dex Paid", "N/A"]
   ]);
-  const intelligence = i && (i.sources.some((s) => s !== "GMGN") || i.topHolderPcts.length || present(i.kolHolderCount)) ? block("INTELLIGENCE", [
+  const intelligence = i && (i.sources.some((s) => s !== "GMGN") || i.topHolderPcts.length || present(i.kolHolderCount)
+    || present(i.bundlerWalletCount) || present(i.sniperWalletCount) || present(i.bundlerVolumePct)) ? block("INTELLIGENCE", [
     ["Smart Money", number(r.smartMoneyHolderCount, 0)],
     ["KOL", number(i.kolHolderCount, 0)],
     ["FOMO Top 100", i.fomo ? `${i.fomo.matched} terdeteksi • ${i.fomo.window} • parsial` : "N/A"],
-    ["Bundler", present(r.bundlerPct) ? `${number(r.bundlerPct)}% supply` : "N/A"],
-    ["Sniper", present(r.sniperPct) ? `${number(r.sniperPct)}% supply` : "N/A"],
+    ["Bundler", present(i.bundlerWalletCount) ? `${number(i.bundlerWalletCount, 0)} wallet`
+      : present(r.bundlerPct) ? `${number(r.bundlerPct)}% supply` : "N/A"],
+    ["Sniper", present(i.sniperWalletCount) ? `${number(i.sniperWalletCount, 0)} wallet`
+      : present(r.sniperPct) ? `${number(r.sniperPct)}% supply` : "N/A"],
+    ...(present(i.bundlerVolumePct) ? [["Bundler vol.", `${number(i.bundlerVolumePct)}% volume`]] as [string, string][] : []),
     [r.chain === "robinhood" ? "Dev graduated" : "Dev bonded", r.chain === "robinhood"
       ? `${number(i.developerGraduatedCount, 0)} • ${present(i.developerGraduationRatePct) ? `${number(i.developerGraduationRatePct)}%` : "N/A"}`
       : i.developerBondedCount !== null ? `${number(i.developerBondedCount, 0)} • ${number(i.developerBondRatePct)}%` : "N/A"],

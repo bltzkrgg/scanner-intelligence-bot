@@ -30,12 +30,14 @@ const tokenSchema = z.object({
     buys_5m: count, sells_5m: count
   }).prefault({}),
   pool: z.object({ liquidity: positive }).prefault({}),
-  stat: z.object({ top_10_holder_rate: ratio }).prefault({}),
+  stat: z.object({ top_10_holder_rate: ratio, top_bundler_trader_percentage: ratio.catch(null) }).prefault({}),
   dev: z.object({ creator_open_count: count, creator_address: tokenAddressSchema.nullable().optional() }).prefault({}),
-  wallet_tags_stat: z.object({ smart_wallets: count, renowned_wallets: count }).prefault({})
+  wallet_tags_stat: z.object({ smart_wallets: count, renowned_wallets: count,
+    bundler_wallets: count.catch(null), sniper_wallets: count.catch(null) }).prefault({})
 });
 const securitySchema = z.object({
   top_10_holder_rate: ratio, suspected_insider_hold_rate: ratio,
+  bundler_trader_amount_rate: ratio.catch(null), sniper_count: count.catch(null),
   is_wash_trading: z.boolean().nullable().optional(),
   is_honeypot: z.union([z.string(), z.boolean(), z.number()]).nullable().optional(),
   honeypot: z.union([z.string(), z.boolean(), z.number()]).nullable().optional(),
@@ -101,6 +103,9 @@ export function parseTokenInfo(input: unknown, mint: string, security?: unknown,
     smartMoneyHolderCount: raw.wallet_tags_stat.smart_wallets,
     intelligence: tokenIntelligenceSchema.parse({
       deployer: raw.dev.creator_address ?? null, kolHolderCount: raw.wallet_tags_stat.renowned_wallets,
+      bundlerWalletCount: raw.wallet_tags_stat.bundler_wallets,
+      sniperWalletCount: raw.wallet_tags_stat.sniper_wallets ?? safety?.sniper_count ?? null,
+      bundlerVolumePct: pct(safety?.bundler_trader_amount_rate ?? raw.stat.top_bundler_trader_percentage),
       buys5m: raw.price.buys_5m, sells5m: raw.price.sells_5m,
       mintAuthorityRevoked: chain === "sol" ? safety?.renounced_mint ?? null : null,
       freezeAuthorityRevoked: chain === "sol" ? safety?.renounced_freeze_account ?? null : null,

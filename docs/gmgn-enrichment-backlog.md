@@ -1,6 +1,6 @@
 # Catatan Pengayaan Data GMGN
 
-Status: integrasi multi-provider tersedia; lihat [panduan provider](providers.md). Insider berasal dari GMGN jika tersedia. Bundler/sniper dapat diperkaya Solana Tracker; smart-money net flow 1h dan persentase LP terkunci belum diimplementasikan dan tetap `null`.
+Status: integrasi multi-provider tersedia; lihat [panduan provider](providers.md). Insider berasal dari GMGN jika tersedia. Bundler/sniper memakai jumlah wallet GMGN dan rasio volume bundler berlabel satuan yang sesuai, bukan exposure supply dari Tracker. Smart-money net flow 1h dan persentase LP terkunci belum diimplementasikan dan tetap `null`.
 
 | Kebutuhan | Sumber yang perlu diverifikasi | Batasan implementasi |
 | --- | --- | --- |

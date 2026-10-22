@@ -85,7 +85,7 @@ Request GET yang gagal pada transport Node kini dapat dipulihkan sekali lewat sy
 
 Whitespace di tepi key dihapus; key MadeOnSol/FOMO yang disalin bersama prefix `Bearer ` dinormalisasi agar tidak menjadi `Bearer Bearer ...`. Ini bukan pengganti key Data API Tracker atau izin endpoint yang benar.
 
-Solana Tracker kini mencoba `/tokens/{mint}/bundlers` jika token-info dari pool segar tidak menyertakan persentase bundler. Hanya field `percentage` yang digunakan, bukan jumlah wallet/balance atau initial percentage. Respons MadeOnSol `is_deployer:false, deployer:null` diperlakukan sebagai wallet belum mempunyai histori terindeks, bukan error parser dan bukan bonded=0.
+Bundler dan Sniper sekarang diambil langsung dari GMGN, bukan Solana Tracker. Bot tidak lagi memanggil Tracker `/tokens/{mint}/bundlers` atau membaca risk bundler/sniper Tracker. Respons MadeOnSol `is_deployer:false, deployer:null` diperlakukan sebagai wallet belum mempunyai histori terindeks, bukan error parser dan bukan bonded=0.
 
 Referensi kontrak: [GMGN holder fields](https://github.com/GMGNAI/gmgn-skills/blob/main/skills/gmgn-token/SKILL.md), [Tracker bundlers](https://docs.solanatracker.io/data-api/tokens/get-token-bundlers), [MadeOnSol deployer profile](https://madeonsol.com/blog/solana-deployer-api).
 
@@ -95,8 +95,8 @@ Setelah mengubah env, restart lewat `pm2 restart ecosystem.config.cjs --only sca
 
 | Provider | Integrasi aktif | Jaringan |
 | --- | --- | --- |
-| GMGN CLI | Market/security, KOL, smart money, Flow 5m jika tersedia; opsional top 100 holder dan kelompok pendanaan | Solana, BSC, RH |
-| Solana Tracker | Discovery utama `/search`, DEX pool berlikuiditas terbesar yang segar, creator token, bundler/sniper supply exposure | Solana |
+| GMGN CLI | Market/security, KOL, smart money, jumlah wallet bundler/sniper dan rasio volume bundler, Flow 5m jika tersedia; opsional top 100 holder dan kelompok pendanaan | Solana, BSC, RH sesuai field provider |
+| Solana Tracker | Discovery utama `/search`, DEX pool berlikuiditas terbesar yang segar, creator token | Solana |
 | Helius | RPC `getAccountInfo` jsonParsed, verifikasi mint/freeze authority dan owner program SPL/Token-2022 | Solana |
 | MadeOnSol | Solana `/deployer-hunter/{wallet}`: deploy/bond; RH `/rhc/deployer-hunter/{address}` dan `/tokens`: deploy/graduation | Solana, RH |
 | FOMO API | Leaderboard 100 trader + top holders token; identitas trader dideduplikasi userId, handle dicocokkan case-insensitive | Solana, BSC, RH jika endpoint menjawab |
@@ -107,6 +107,9 @@ Harga, volume, market cap dan fee tetap konsisten dari GMGN. DEX yang dilaporkan
 
 ## Arti Field
 
+- Bundler/Sniper: jumlah wallet dari `token info` GMGN `wallet_tags_stat.bundler_wallets` / `sniper_wallets`; jika sniper count info kosong, gunakan `token security.sniper_count`. Nilai nol dipertahankan. Tampilan memakai satuan `wallet`, bukan `% supply`.
+- Bundler vol.: `token security.bundler_trader_amount_rate`, fallback `token info.stat.top_bundler_trader_percentage`; rasio 0-1 dikali 100 dan diberi label `% volume`, bukan exposure supply. Tidak ada query GMGN tambahan. Angka invalid/kosong tetap null dan tidak menggagalkan market scan. Query scan/runner memakai pemetaan yang sama; error/kredit Tracker tidak mengosongkan field GMGN tersebut.
+- Exposure supply `bundlerPct` / `sniperPct` tetap null pada snapshot live baru: count/rasio volume tidak dipakai untuk memenuhi metrik risiko atau benchmark berbasis kepemilikan supply. Histori event lama yang memang menyimpan persen supply tetap ditampilkan sebagai histori, tanpa konversi ke count. Field intelligence baru pada state lama mendapat null, bukan nol. Tidak ada jaminan semua chain/token mengembalikan field GMGN yang sama.
 - Wallets: persentase supply maksimal lima holder teramati, bukan saldo SOL atau skor wallet.
 - Top holder teramati: jumlah persentase supply pada sampel maksimal 100, tidak mengklaim seluruh pemegang. Pool, burn, kontrak token sendiri dan addr_type tidak diketahui dikeluarkan dari daftar wallet normal.
 - Linked funding: kelompok dalam sampel yang mempunyai sumber pendanaan native sama. Ini indikasi pendanaan terkait, bukan full bubble map atau bukti satu pemilik. Data funding hilang menghasilkan N/A.

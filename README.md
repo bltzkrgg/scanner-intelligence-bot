@@ -24,6 +24,8 @@ Notifikasi runner memakai teks tebal MARKET / ACTIVITY / STATUS tanpa kotak copy
 
 Scan CA dan runner mendukung enrichment opsional Solana Tracker, Helius, MadeOnSol dan FOMO. Isi key di `.env`; lihat [instalasi, cakupan dan batasan provider](docs/providers.md). MadeOnSol menampilkan jumlah token/bonding Solana serta graduation Robinhood dengan key yang sama; riwayat rug developer tidak dipakai dalam laporan atau skor.
 
+Bundler/Sniper kini langsung dari GMGN: jumlah wallet dan, bila tersedia, rasio volume bundler berlabel `% volume`. Tidak membutuhkan kredit Tracker untuk kedua metrik ini dan tidak menambah query GMGN. Count/volume tidak disamakan dengan persentase kepemilikan supply atau dipakai sebagai pengganti metrik risiko supply.
+
 Tes MadeOnSol tanpa GMGN: `pnpm madeonsol:check` memeriksa `/me` dan feed KOL berdasarkan OpenAPI resmi. Tambahkan `sol <WALLET_DEVELOPER>` atau `rh <WALLET_DEVELOPER>` untuk memeriksa histori developer. Key dibaca dari `.env`, tidak dicetak. Error tier/origin/kuota dibedakan dari HTML 403 yang penyebabnya belum diketahui; lihat [panduan tes MadeOnSol](docs/providers.md#madeonsol-kontrak-rest-dan-tes-akses-mandiri).
 
 Pengiriman runner kini diperiksa setelah tiap observasi tersimpan, bukan setelah semua chain selesai. `/status` menampilkan durasi siklus; lihat [penyebab dan batas latensi](docs/runner-latency.md).
