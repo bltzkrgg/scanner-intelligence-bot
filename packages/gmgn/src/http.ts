@@ -1,4 +1,5 @@
 import { ZodError } from "zod";
+import { curlFetch } from "./curl-fetch.js";
 
 export class ProviderDataError extends Error {}
 
@@ -47,10 +48,12 @@ export class ProviderHttp {
   private pending = new Map<string, Promise<unknown>>();
   private blockedUntil = 0;
   private blockedStatus?: number;
+  private recoveryUntil = 0;
 
   constructor(private readonly name: string, private readonly base: string,
     private readonly headers: Record<string, string>, private readonly ttlMs: number,
-    private readonly fetcher: typeof fetch = fetch) {}
+    private readonly fetcher: typeof fetch = fetch,
+    private readonly recovery: typeof fetch | undefined = fetcher === fetch ? curlFetch : undefined) {}
 
   async request(path: string, body?: unknown, force = false, ttlMs = this.ttlMs): Promise<unknown> {
     const key = path + (body === undefined ? "" : JSON.stringify(body));
@@ -70,11 +73,23 @@ export class ProviderHttp {
 
   private async fetchJson(path: string, body?: unknown): Promise<unknown> {
     try {
-      const response = await this.fetcher(this.base + path, {
+      const options: RequestInit = {
         method: body === undefined ? "GET" : "POST", redirect: "manual",
-        headers: { ...this.headers, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+        headers: { accept: "application/json", ...this.headers, ...(body === undefined ? {} : { "content-type": "application/json" }) },
         body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(8000)
-      });
+      };
+      let response: Response;
+      const request = body === undefined && this.recovery && Date.now() < this.recoveryUntil ? this.recovery : this.fetcher;
+      try { response = await request(this.base + path, options); }
+      catch (error) {
+        if (body !== undefined || !this.recovery || request === this.recovery) throw error;
+        // A verified system transport can recover Node trust-store/proxy/socket failures, not HTTP denials.
+        try {
+          response = await this.recovery(this.base + path, { ...options, signal: AbortSignal.timeout(8000) });
+          if (response.ok) this.recoveryUntil = Date.now() + 300000;
+        }
+        catch { throw new ProviderHttpError(this.name, `${transportFailureReason(error)} Pemulihan curl juga gagal; akses belum pulih.`); }
+      }
       if (!response.ok) {
         if (response.status >= 300 && response.status < 400) {
           throw new ProviderHttpError(this.name, `HTTP ${response.status}: redirect ditolak; kredensial tidak diteruskan.`, response.status);

@@ -199,26 +199,38 @@ export class CliGmgnAdapter implements GmgnAdapter {
 
 export function applyHolderAnalysis(s: MarketSnapshot, input: unknown, chain: Chain): void {
   const holder = z.object({ address: tokenAddressSchema, amount_percentage: ratio,
-    addr_type: z.number().int().optional(),
+    addr_type: z.preprocess((v) => v === "0" ? 0 : v === "2" ? 2 : v, z.number().int().nullable().optional()),
     native_transfer: z.unknown().optional()
   });
-  const data = z.union([z.array(holder), z.object({ list: z.array(holder) })]).parse(unwrapGmgn(input));
+  const data = z.union([z.array(z.unknown()), z.object({ list: z.array(z.unknown()) })]).parse(unwrapGmgn(input));
   const rows = Array.isArray(data) ? data : data.list;
   if (!rows.length || rows.length > 100) throw new ProviderDataError("GMGN: data holder kosong atau melebihi batas 100.");
-  const unique = [...new Map(rows.map((r) => [normalizeAddress(r.address, chain), r])).values()];
+  const valid = rows.flatMap((row) => {
+    const result = holder.safeParse(row);
+    if (!result.success) return [];
+    try { return [{ ...result.data, address: normalizeAddress(result.data.address, chain) }]; }
+    catch { return []; }
+  });
+  const unique = [...new Map(valid.map((r) => [r.address, r])).values()];
   const observed = unique.filter((r) => r.addr_type === 0 && normalizeAddress(r.address, chain) !== s.mint && r.amount_percentage != null);
   const sum = observed.reduce((n, r) => n + r.amount_percentage! * 100, 0);
   if (sum > 100.001 || !observed.length) throw new ProviderDataError("GMGN: cakupan holder normal belum dapat diverifikasi.");
   const groups = new Map<string, { count: number; pct: number }>();
   for (const row of observed) {
-    const funding = z.object({ from_address: tokenAddressSchema }).safeParse(row.native_transfer);
+    const funding = z.object({ address: z.unknown().optional(), from_address: z.unknown().optional() }).safeParse(row.native_transfer);
     if (!funding.success) continue;
-    let key: string;
-    try { key = normalizeAddress(funding.data.from_address, chain); } catch { continue; }
+    const addresses = new Set<string>();
+    for (const value of [funding.data.address, funding.data.from_address]) {
+      if (typeof value !== "string") continue;
+      try { addresses.add(normalizeAddress(value, chain)); } catch { /* Missing optional funding must not drop the holder. */ }
+    }
+    if (addresses.size !== 1) continue;
+    const key = [...addresses][0];
     const group = groups.get(key) ?? { count: 0, pct: 0 };
     group.count++; group.pct += row.amount_percentage! * 100; groups.set(key, group);
   }
   const intel = s.intelligence ??= tokenIntelligenceSchema.parse({ sources: ["GMGN"] });
+  if (valid.length !== rows.length) s.dataWarnings?.push("GMGN holder: sebagian baris tidak valid diabaikan; cakupan holder parsial.");
   intel.topHolderPcts = observed.map((r) => r.amount_percentage! * 100).sort((a, b) => b - a);
   intel.top100ObservedPct = Math.min(100, sum);
   intel.linkedFundingPct = groups.size ? Math.min(100, Math.max(0, ...[...groups.values()].filter((g) => g.count >= 2).map((g) => g.pct))) : null;

@@ -111,6 +111,12 @@ export class EnrichedAdapter implements GmgnAdapter {
       s.sniperPct ??= data.risk?.snipers?.totalPercentage ?? null;
     }
     if (!pool) s.dataWarnings!.push("Solana Tracker: pool terbaru belum tersedia.");
+    if (pool && s.bundlerPct == null) {
+      try {
+        const bundlers = z.object({ percentage: pct }).parse(await this.tracker!.request(`/tokens/${mint}/bundlers`, undefined, force));
+        s.bundlerPct = bundlers.percentage ?? null;
+      } catch (error) { s.dataWarnings!.push(providerFailureReason("Solana Tracker bundlers", error)); }
+    }
   }
 
   private async authorities(s: MarketSnapshot, mint: string, force = false): Promise<void> {
@@ -132,10 +138,15 @@ export class EnrichedAdapter implements GmgnAdapter {
 
   private async developer(s: MarketSnapshot, wallet: string, force = false): Promise<void> {
     wallet = base58AddressSchema.parse(wallet);
-    const data = z.object({ deployer: z.object({ wallet_address: base58AddressSchema,
-      total_tokens_deployed: count, total_bonded: count }) }).parse(
+    const data = z.object({ is_deployer: z.boolean().optional(), deployer: z.object({ wallet_address: base58AddressSchema,
+      total_tokens_deployed: count, total_bonded: count }).nullable() }).parse(
       await this.made!.request(`/deployer-hunter/${wallet}`, undefined, force));
     const d = data.deployer;
+    if (data.is_deployer === false && d === null) {
+      s.intelligence!.unavailable.developer = "MadeOnSol: provider belum mempunyai histori deployer terindeks untuk wallet ini.";
+      return;
+    }
+    if (!d || data.is_deployer === false) throw new ProviderDataError("MadeOnSol: respons identitas deployer tidak konsisten.");
     if (d.wallet_address !== wallet) throw new ProviderDataError("MadeOnSol: identitas deployer berbeda dari permintaan.");
     if (d.total_tokens_deployed == null || d.total_bonded == null) {
       throw new ProviderDataError("MadeOnSol: total_tokens_deployed/total_bonded belum tersedia pada respons.");
@@ -220,6 +231,9 @@ export class EnrichedAdapter implements GmgnAdapter {
 
   private async fomoRequest(stage: string, path: string, force = false): Promise<unknown> {
     try { return await this.fomo!.request(path, undefined, force); }
-    catch (error) { throw new ProviderDataError(`FOMO: query gagal (${stage}): ${providerFailureReason("FOMO", error)}`); }
+    catch (error) {
+      const reason = `FOMO: query gagal (${stage}): ${providerFailureReason("FOMO", error)}`;
+      throw new ProviderDataError(reason.length > 240 ? `${reason.slice(0, 237)}...` : reason);
+    }
   }
 }

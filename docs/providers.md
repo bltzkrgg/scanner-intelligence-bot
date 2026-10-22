@@ -54,7 +54,21 @@ pnpm providers:check sol <CA>
 
 Output berisi flag aktif/nonaktif, boolean keberadaan key (bukan nilainya), sumber yang berhasil, dan alasan field pada `unavailable`. HTTP 401 dibedakan dari 402 (kredit), 403 (izin/paket/IP), 429 (rate limit), timeout, respons bukan JSON dan format parser tidak cocok. Error parser hanya mencantumkan nama field yang diizinkan, tidak menampilkan nilai mentah. FOMO leaderboard kedaluwarsa atau holder fallback tidak dianggap data live. MadeOnSol memerlukan alamat deployer serta total deploy/bond yang tersedia; key valid saja tidak mengisi data yang belum diindeks.
 
-Wallets dan Linked funding memerlukan `GMGN_HOLDER_ANALYSIS_ENABLED=true`. Tanpa flag ini query holder tidak dijalankan, sekalipun key lain lengkap. Bila GMGN tidak memberikan `native_transfer.from_address` yang valid, Linked funding tetap N/A; metadata funding kosong tidak lagi menggugurkan daftar wallet yang valid. Error teknis enrichment MadeOnSol/FOMO disembunyikan dari pesan Telegram, termasuk salinannya pada bagian Data Belum Tersedia. Alasan tetap tersimpan pada state/API dan `providers:check`. Catatan Risiko pada alert tidak muncul jika tidak ada warning lain; bukti risiko token dan label data parsial tetap tampil. Pesan lama tidak diperbarui otomatis.
+Wallets dan Linked funding memerlukan `GMGN_HOLDER_ANALYSIS_ENABLED=true`. Sumber pendanaan resmi GMGN dibaca dari `native_transfer.address`; varian lama `from_address` juga diterima. Jika dua field itu menunjuk alamat berbeda, funding baris tersebut tidak disimpulkan. Parsing dilakukan per baris: baris rusak atau alamat salah chain diabaikan dengan penanda cakupan parsial, bukan menggagalkan holder valid lainnya. Pool/exchange dan address type yang belum diketahui tetap dikecualikan; rasio supply harus 0-1, bukan angka persen 0-100. Bila tidak ada sumber pendanaan valid, Linked funding tetap N/A.
+
+Error teknis enrichment MadeOnSol/FOMO tetap disembunyikan dari pesan Telegram, termasuk salinannya pada bagian Data Belum Tersedia. Alasan tersimpan pada state/API dan `providers:check`. Catatan Risiko pada alert tidak muncul jika tidak ada warning lain; bukti risiko token dan label data parsial tetap tampil. Pesan lama tidak diperbarui otomatis.
+
+### Pemulihan Request dan Respons Provider
+
+Request GET yang gagal pada transport Node kini dapat dipulihkan sekali lewat system `curl` ke URL/headers yang sama, dengan HTTPS dan verifikasi sertifikat tetap aktif. Jika berhasil, transport curl dipakai selama lima menit pada instance provider tersebut agar setiap token tidak mengulang timeout Node. Perbaikan ini dapat membantu perbedaan trust-store, proxy, DNS atau koneksi antara Node dan curl; bukan bukti bahwa itulah penyebab di semua VPS.
+
+`curl` harus tersedia pada PATH proses PM2. Tidak ada `--insecure`, tidak mengikuti redirect, dan `.curlrc` diabaikan. Key dikirim ke curl lewat stdin, bukan argv/file sementara/log. Ukuran respons dibatasi dan timeout setiap attempt delapan detik; satu pemulihan dapat menambah latensi dan pemanggilan provider. HTTP 401/402/403/429 tidak dicoba ulang lewat curl; POST RPC Helius juga tidak diulang. Penolakan paket, key, IP atau gateway yang nyata tetap memerlukan koreksi akses provider, bukan bypass kode.
+
+Whitespace di tepi key dihapus; key MadeOnSol/FOMO yang disalin bersama prefix `Bearer ` dinormalisasi agar tidak menjadi `Bearer Bearer ...`. Ini bukan pengganti key Data API Tracker atau izin endpoint yang benar.
+
+Solana Tracker kini mencoba `/tokens/{mint}/bundlers` jika token-info dari pool segar tidak menyertakan persentase bundler. Hanya field `percentage` yang digunakan, bukan jumlah wallet/balance atau initial percentage. Respons MadeOnSol `is_deployer:false, deployer:null` diperlakukan sebagai wallet belum mempunyai histori terindeks, bukan error parser dan bukan bonded=0.
+
+Referensi kontrak: [GMGN holder fields](https://github.com/GMGNAI/gmgn-skills/blob/main/skills/gmgn-token/SKILL.md), [Tracker bundlers](https://docs.solanatracker.io/data-api/tokens/get-token-bundlers), [MadeOnSol deployer profile](https://madeonsol.com/blog/solana-deployer-api).
 
 Setelah mengubah env, restart lewat `pm2 restart ecosystem.config.cjs --only scanner-telegram --update-env`, bukan hanya mengedit file. CLI check membaca `.env` baru, sementara proses PM2 lama bisa masih memakai env lama. Kirim output diagnostik bila perlu bantuan, jangan `.env`, header auth atau key. Perintah diagnostik tetap membutuhkan GMGN yang berfungsi; flag konfigurasi dicetak sebelum query sehingga tetap bisa diperiksa jika GMGN gagal.
 
