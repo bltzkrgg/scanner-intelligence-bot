@@ -3,10 +3,77 @@ import { curlFetch } from "./curl-fetch.js";
 
 export class ProviderDataError extends Error {}
 
+export interface ProviderHttpDetails {
+  format: "HTML" | "JSON" | "other";
+  requestId?: string;
+  code?: string;
+  yourTier?: string;
+  requiredTier?: string;
+}
+
 export class ProviderHttpError extends Error {
-  constructor(readonly provider: string, readonly reason: string, readonly status?: number) {
+  constructor(readonly provider: string, readonly reason: string, readonly status?: number,
+    readonly details?: ProviderHttpDetails) {
     super(`${provider}: ${reason}`);
   }
+}
+
+async function madeOnSolFailure(response: Response, secrets: string[]): Promise<{ reason: string; details: ProviderHttpDetails }> {
+  const contentType = response.headers.get("content-type") ?? "";
+  const format = /text\/html/i.test(contentType) ? "HTML"
+    : /application\/(?:[\w.-]+\+)?json/i.test(contentType) ? "JSON" : "other";
+  const details: ProviderHttpDetails = { format };
+  const requestId = response.headers.get("x-request-id");
+  if (requestId && /^[A-Za-z0-9_-]{1,256}$/.test(requestId) && !secrets.some((s) => s && requestId.includes(s))) {
+    details.requestId = requestId;
+  }
+  let reason = format === "HTML" ? "respons HTML, bukan error JSON API; penyebab penolakan belum teridentifikasi"
+    : "query provider gagal; kode error resmi belum tersedia";
+  if (format === "JSON") {
+    // Read a bounded error envelope; never expose arbitrary error/message/body values.
+    const reader = response.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    if (reader) {
+      try {
+        for (;;) {
+          const part = await reader.read();
+          if (part.done) break;
+          length += part.value.byteLength;
+          if (length > 65536) break;
+          chunks.push(part.value);
+        }
+      } finally { await reader.cancel().catch(() => undefined); }
+    }
+    let data: Record<string, unknown> = {};
+    try {
+      const value: unknown = length <= 65536 ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : null;
+      if (value && typeof value === "object" && !Array.isArray(value)) data = value as Record<string, unknown>;
+    } catch { /* Malformed JSON is still an HTTP failure, not a parser diagnosis. */ }
+    const reasons: Record<string, string> = {
+      tier_required: "tier akun tidak memenuhi akses endpoint/parameter",
+      demo_key_endpoint_not_allowed: "demo key tidak diizinkan untuk endpoint ini",
+      origin_not_allowed: "origin request tidak diizinkan oleh pengaturan key",
+      origin_required: "key mensyaratkan origin; periksa pengaturan key untuk penggunaan server",
+      auth_backend_unavailable: "layanan autentikasi sementara tidak tersedia; bukan bukti key salah",
+      rate_limit_exceeded: "kuota/rate limit tercapai",
+      statement_timeout: "query provider sementara timeout",
+      concurrency: "batas query bersamaan tercapai",
+      capacity: "kapasitas query provider sementara penuh"
+    };
+    const code = [data.code, data.error, data.error_kind].find((v): v is string =>
+      typeof v === "string" && Object.hasOwn(reasons, v));
+    if (code) { details.code = code; reason = reasons[code]; }
+    else if (data.error === "Invalid or revoked API key") { details.code = "invalid_or_revoked_key"; reason = "key tidak valid atau sudah dicabut"; }
+    else if (response.status === 401) reason = "autentikasi key gagal";
+    const tiers = new Set(["BASIC", "PRO", "ULTRA", "BUSINESS", "ENTERPRISE"]);
+    if (typeof data.your_tier === "string" && tiers.has(data.your_tier)) details.yourTier = data.your_tier;
+    if (typeof data.required_tier === "string" && tiers.has(data.required_tier)) details.requiredTier = data.required_tier;
+  } else await response.body?.cancel().catch(() => undefined);
+  if (details.code) reason += ` (${details.code})`;
+  if (details.yourTier || details.requiredTier) reason += `; tier ${details.yourTier ?? "?"}, diperlukan ${details.requiredTier ?? "?"}`;
+  if (details.requestId) reason += `; request ID ${details.requestId}`;
+  return { reason: `HTTP ${response.status}: ${reason}. Jenis respons: ${format}.`, details };
 }
 
 export function transportFailureReason(error: unknown): string {
@@ -48,6 +115,7 @@ export class ProviderHttp {
   private pending = new Map<string, Promise<unknown>>();
   private blockedUntil = 0;
   private blockedStatus?: number;
+  private blockedError?: ProviderHttpError;
   private recoveryUntil = 0;
 
   constructor(private readonly name: string, private readonly base: string,
@@ -61,7 +129,8 @@ export class ProviderHttp {
     if (!force && cached && cached.until > Date.now()) return structuredClone(cached.value);
     const pending = this.pending.get(key);
     if (pending) return structuredClone(await pending);
-    if (Date.now() < this.blockedUntil) throw new ProviderHttpError(this.name, `cooldown setelah HTTP ${this.blockedStatus}.`, this.blockedStatus);
+    if (Date.now() < this.blockedUntil) throw this.blockedError
+      ?? new ProviderHttpError(this.name, `cooldown setelah HTTP ${this.blockedStatus}.`, this.blockedStatus);
     const task = this.fetchJson(path, body).then((value) => {
       if (this.cache.size >= 300) this.cache.delete(this.cache.keys().next().value!);
       this.cache.set(key, { until: Date.now() + ttlMs, value });
@@ -94,11 +163,21 @@ export class ProviderHttp {
         if (response.status >= 300 && response.status < 400) {
           throw new ProviderHttpError(this.name, `HTTP ${response.status}: redirect ditolak; kredensial tidak diteruskan.`, response.status);
         }
-        if ([401, 402, 403, 429].includes(response.status)) {
+        if ([401, 402, 403, 429].includes(response.status) || (this.name === "MadeOnSol" && response.status === 503)) {
           const header = response.headers.get("retry-after");
-          const retry = header === null ? 300 : Number(header);
-          this.blockedUntil = Date.now() + Math.min(3600, Math.max(60, Number.isFinite(retry) ? retry : 300)) * 1000;
+          const reset = this.name === "MadeOnSol" && response.status === 429 ? response.headers.get("x-ratelimit-reset") : null;
+          const retry = header !== null ? Number(header) : reset !== null ? Number(reset) - Date.now() / 1000 : 300;
+          const minimum = this.name === "MadeOnSol" ? 1 : 60;
+          const maximum = reset !== null && header === null ? 86400 : 3600;
+          this.blockedUntil = Date.now() + Math.min(maximum, Math.max(minimum, Number.isFinite(retry) ? retry : 300)) * 1000;
           this.blockedStatus = response.status;
+        }
+        if (this.name === "MadeOnSol") {
+          const secrets = Object.values(this.headers).map((value) => value.replace(/^Bearer\s+/i, ""));
+          const failure = await madeOnSolFailure(response, secrets);
+          const error = new ProviderHttpError(this.name, failure.reason, response.status, failure.details);
+          if ([401, 402, 403, 429, 503].includes(response.status)) this.blockedError = error;
+          throw error;
         }
         const reasons: Record<number, string> = { 401: "key tidak diterima", 402: "kredit/kuota habis",
           403: "akses ditolak; periksa izin/paket/IP", 404: "token/wallet atau endpoint tidak ditemukan", 429: "rate limit" };

@@ -58,7 +58,26 @@ Wallets dan Linked funding memerlukan `GMGN_HOLDER_ANALYSIS_ENABLED=true`. Sumbe
 
 Error teknis enrichment MadeOnSol/FOMO tetap disembunyikan dari pesan Telegram, termasuk salinannya pada bagian Data Belum Tersedia. Alasan tersimpan pada state/API dan `providers:check`. Catatan Risiko pada alert tidak muncul jika tidak ada warning lain; bukti risiko token dan label data parsial tetap tampil. Pesan lama tidak diperbarui otomatis.
 
-### Pemulihan Request dan Respons Provider
+### MadeOnSol: Kontrak REST dan Tes Akses Mandiri
+
+Integrasi memakai [OpenAPI REST resmi](https://madeonsol.com/api/v1/openapi.json) v1.20.0: base `https://madeonsol.com/api/v1`, autentikasi `Authorization: Bearer msk_...`. Ini bukan spec x402 di root `/openapi.json`; tidak ada pembayaran otomatis atau perubahan ke endpoint x402.
+
+```bash
+pnpm madeonsol:check
+# Opsional: wallet developer, bukan CA token
+pnpm madeonsol:check sol <WALLET_DEVELOPER_SOLANA>
+pnpm madeonsol:check rh <WALLET_DEVELOPER_RH>
+```
+
+Command ini membaca key `.env` dan tidak membutuhkan GMGN, Telegram, atau key Tracker. Pemeriksaan berurutan: `/me` (tier dan kuota), feed KOL maksimal 5 transaksi, lalu profil developer bila wallet diberikan. Jika satu tahap gagal, tahap berikutnya tidak dikirim dan exit code 1. Tes eksplisit tetap dijalankan bila `MADEONSOL_ENABLED=false`, dengan flag tersebut dicetak; ini tidak mengaktifkan enrichment bot. Output hanya ringkasan allowlist, tanpa identitas subscriber, isi transaksi, key, HTML, pesan error mentah, atau header autentikasi. Tidak mengubah konfigurasi akun atau mengirim origin palsu. Setiap request dapat memakai kuota provider.
+
+Error JSON MadeOnSol kini dibedakan menggunakan kontrak resmi: `tier_required`, `demo_key_endpoint_not_allowed`, `origin_not_allowed`, `origin_required`, invalid/revoked key, rate limit, serta `auth_backend_unavailable`. Tier dan request ID yang aman tersedia pada diagnostik; diagnosis dipertahankan selama cooldown. HTTP 403 HTML dilaporkan sebagai penolakan yang penyebabnya belum teridentifikasi, bukan otomatis salah key, paket atau WAF. Error teknis tetap disembunyikan dari Telegram sesuai pengaturan tampilan sebelumnya.
+
+`Retry-After` pada MadeOnSol 429/503 dihormati dengan batas 1-3600 detik; bila 429 tidak membawa header itu, `X-RateLimit-Reset` digunakan sampai maksimal 24 jam. Tidak ada retry berulang atau perpindahan IP untuk menghindari penolakan akses.
+
+Profil Solana tetap `/deployer-hunter/{wallet}` (FREE): `total_tokens_deployed` dan `total_bonded` divalidasi sebagai integer nonnegatif, alamat harus sama, bonded tidak boleh melebihi deployed. Respons unindexed tetap N/A, bukan nol. Feed KOL tidak dipakai untuk mengisi Dev bonded. RH tetap memakai `/rhc/*` dan graduation, bukan bonding Solana. `/me` hanya untuk command diagnostik, tidak menambah request pada tiap scan/poll runner. Patch kontrak dan diagnostik ini tidak menjamin akses VPS pulih bila server masih menjawab 403 HTML.
+
+### Transport dan Parser Provider
 
 Request GET yang gagal pada transport Node kini dapat dipulihkan sekali lewat system `curl` ke URL/headers yang sama, dengan HTTPS dan verifikasi sertifikat tetap aktif. Jika berhasil, transport curl dipakai selama lima menit pada instance provider tersebut agar setiap token tidak mengulang timeout Node. Perbaikan ini dapat membantu perbedaan trust-store, proxy, DNS atau koneksi antara Node dan curl; bukan bukti bahwa itulah penyebab di semua VPS.
 

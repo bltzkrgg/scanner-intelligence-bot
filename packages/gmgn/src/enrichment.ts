@@ -3,6 +3,7 @@ import { logger, normalizeAddress, base58AddressSchema, evmAddressSchema, tokenI
   type AppConfig, type Chain, type MarketSnapshot } from "@sti/shared";
 import type { GmgnAdapter } from "./types.js";
 import { ProviderHttp, ProviderDataError, providerFailureReason } from "./http.js";
+import { createMadeOnSolHttp, parseMadeOnSolDeployer } from "./madeonsol.js";
 
 const numeric = z.preprocess((v) => v === null || v === undefined || v === "" ? null : typeof v === "string" ? Number(v) : v,
   z.number().finite().nullable()).optional();
@@ -33,8 +34,7 @@ export class EnrichedAdapter implements GmgnAdapter {
       { "x-api-key": config.solanaTrackerApiKey }, ttl, fetcher);
     if (config.heliusApiKey) this.helius = new ProviderHttp("Helius", `https://mainnet.helius-rpc.com/?api-key=${encodeURIComponent(config.heliusApiKey)}`,
       {}, 30000, fetcher);
-    if (config.madeonsolEnabled && config.madeonsolApiKey) this.made = new ProviderHttp("MadeOnSol", "https://madeonsol.com/api/v1",
-      { authorization: `Bearer ${config.madeonsolApiKey}` }, ttl, fetcher);
+    if (config.madeonsolEnabled && config.madeonsolApiKey) this.made = createMadeOnSolHttp(config.madeonsolApiKey, ttl, fetcher);
     if (config.fomoEnabled && config.fomoApiKey) this.fomo = new ProviderHttp("FOMO", "https://api.fomoapi.io",
       { authorization: `Bearer ${config.fomoApiKey}` }, ttl, fetcher);
   }
@@ -138,20 +138,11 @@ export class EnrichedAdapter implements GmgnAdapter {
 
   private async developer(s: MarketSnapshot, wallet: string, force = false): Promise<void> {
     wallet = base58AddressSchema.parse(wallet);
-    const data = z.object({ is_deployer: z.boolean().optional(), deployer: z.object({ wallet_address: base58AddressSchema,
-      total_tokens_deployed: count, total_bonded: count }).nullable() }).parse(
-      await this.made!.request(`/deployer-hunter/${wallet}`, undefined, force));
-    const d = data.deployer;
-    if (data.is_deployer === false && d === null) {
+    const d = parseMadeOnSolDeployer(await this.made!.request(`/deployer-hunter/${wallet}`, undefined, force), wallet);
+    if (d === null) {
       s.intelligence!.unavailable.developer = "MadeOnSol: provider belum mempunyai histori deployer terindeks untuk wallet ini.";
       return;
     }
-    if (!d || data.is_deployer === false) throw new ProviderDataError("MadeOnSol: respons identitas deployer tidak konsisten.");
-    if (d.wallet_address !== wallet) throw new ProviderDataError("MadeOnSol: identitas deployer berbeda dari permintaan.");
-    if (d.total_tokens_deployed == null || d.total_bonded == null) {
-      throw new ProviderDataError("MadeOnSol: total_tokens_deployed/total_bonded belum tersedia pada respons.");
-    }
-    if (d.total_bonded > d.total_tokens_deployed) throw new ProviderDataError("MadeOnSol: total bonded melebihi total deployed.");
     s.developerTokenCount = d.total_tokens_deployed;
     s.intelligence!.developerBondedCount = d.total_bonded;
     // Documentation uses both 0..1 and 0..100 bonding_rate: derive from explicit counts instead.

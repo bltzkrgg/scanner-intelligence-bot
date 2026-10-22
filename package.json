@@ -20,6 +20,7 @@
     "telegram:check": "tsx --env-file=.env apps/telegram/src/check-notifications.ts",
     "gmgn:check": "tsx --env-file=.env apps/api/src/check-provider.ts",
     "providers:check": "tsx --env-file=.env apps/api/src/check-provider.ts --diagnostics",
+    "madeonsol:check": "tsx --env-file=.env apps/api/src/check-madeonsol.ts",
     "research:build-dataset": "python3 research/scripts/build_dataset.py",
     "research:label-outcomes": "python3 research/scripts/label_outcomes.py"
   },
